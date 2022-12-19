@@ -400,14 +400,20 @@ def generate_training_data():
             window_handle = win32gui.FindWindow(None, config.GAME_NAME)
             rect = win32gui.GetWindowRect(window_handle)
             
-            for i in range(10):
+            NUM_ITERATIONS = 5000
+            print("starting in 3 seconds")
+            time.sleep(3)
+            # TODO images show that some pool balls are in the air?
+            # TODO need the bounding box of the random board state
+            # Separate classes into files and scrap board state use a conversion utility module instead because thats what it does
+            # 5000 images was roughly 8gigs
+            for i in range(NUM_ITERATIONS):
                 random_board = board_state.generate_random_board_state()
                 random_board.write_to_process_memory(process)
                 bounding_boxes = board_state.get_board_bounding_boxes()
                 img = grabscreen.grab_screen(rect)
                 img_id = save_image(output_directory, img)
                 training_metadata.append((img_id, bounding_boxes))
-                time.sleep(2)
 
             pickle.dump(training_metadata, open(metadatafile, "wb"))
         finally:
