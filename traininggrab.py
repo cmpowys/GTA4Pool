@@ -136,6 +136,7 @@ class BoardState(object):
 
         return result
 
+    ##TODO this is probably wrong will need to used the basis matrix defined for the opposite direction
     def convert_point_from_model_space_to_game_space(self, point):
         x, y = point
         delta_x = self.bottomright[0] - self.topleft[0]
