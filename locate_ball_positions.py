@@ -22,13 +22,13 @@ def locate_ball_positions_manually(delay=0.5):
         initial_area = get_triangle_sub_image(window_rect)
 
         for counter, (ball, pointer) in enumerate(found):
-            if counter < manualconfig.LOCATE_STARTING_ITERATION: continue
+            if counter < config.LOCATE_STARTING_ITERATION: continue
             tmp_ball = ball.copy()
             tmp_ball.x += 3
             
             print("counter=", counter, "total=", found_len)
             process.write_pool_ball(pointer, tmp_ball)
-            time.sleep(manualconfig.LOCATE_DELAY)
+            time.sleep(config.LOCATE_DELAY)
             new_area = get_triangle_sub_image(window_rect)
 
             if areas_changed(initial_area, new_area):
@@ -67,7 +67,7 @@ def get_triangle_sub_image(window_rect):
 def areas_changed(initial_area, current_area):
     subtracted_area = initial_area - current_area
     subtracted_area = cv2.cvtColor(subtracted_area, cv2.COLOR_BGR2GRAY)
-    return np.average(subtracted_area) > manualconfig.LOCATE_AREA_THRESHOLD
+    return np.average(subtracted_area) > config.LOCATE_AREA_THRESHOLD
 
 def find_objects_within_bounds(process, starting_position, topleft, bottomright):
     STEPS_TO_TAKE = 10000
@@ -82,7 +82,7 @@ def find_objects_within_bounds(process, starting_position, topleft, bottomright)
     return [(ball, pointer) for (ball, pointer) in process.iterate_over_potential_objects(starting_position, STEPS_TO_TAKE) if test(ball)]
 
 def get_white_ball_ptr(process):
-    return process.get_pointer((manualconfig.BASE_ADDRESS + manualconfig.WHITE_BALL_PTR_INITIAL_OFFSET_FROM_BASE), offsets=manualconfig.WHITE_BALL_PTR_OFFSETS)
+    return process.get_pointer((manualconfig.BASE_ADDRESS + config.WHITE_BALL_PTR_INITIAL_OFFSET_FROM_BASE), offsets=config.WHITE_BALL_PTR_OFFSETS)
 
 if __name__ == "__main__":
-    locate_ball_positions_manually(manualconfig.LOCATE_DELAY)
+    locate_ball_positions_manually(config.LOCATE_DELAY)
