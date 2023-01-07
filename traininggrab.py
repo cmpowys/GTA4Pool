@@ -191,83 +191,6 @@ class PoolObjectPosition(object):
     def copy(self):
         return PoolObjectPosition(self.x, self.y, self.z, self.r1, self.r2, self.r3)
 
-red_striped_ball = PoolObjectPosition(1467.694702, 57.24176025,25.32337952)
-yellow_solid_ball = PoolObjectPosition(1467.366821, 57.32870865, 24.94081879)
-orange_striped_ball = PoolObjectPosition(1470.637939, 53.88607788, 24.98603058)
-purple_striped_ball = PoolObjectPosition(1469.857422, 61.09325027, 24.97695923)
-black_ball = PoolObjectPosition(1467.5, 59.19515991, 24.75574875)
-brown_solid_ball = PoolObjectPosition(1467.501343, 58.48516846, 24.32999992)
-green_solid_ball = PoolObjectPosition(1467.501343, 58.59082794, 24.32999992)
-orange_solid_ball = PoolObjectPosition(1467.501343, 58.88348007, 24.34210968)
-purple_solid_ball = PoolObjectPosition(1467.900024, 58.67934036, 24.32999992)
-blue_striped_ball = PoolObjectPosition(1467.630859, 59.06235886, 25.3220787)
-yellow_striped_ball = PoolObjectPosition(1467.461304, 58.80718994, 24.75392914)
-#blue_solid_ball = PoolObjectPosition()
-# solid_red_ball = PoolObjectPosition(1467.501343, 58.67934036, 24.32999992)
-# green_striped_ball = PoolObjectPosition(1467.501343, 53.88607788, 24.98603058)
-
-pool_balls = {
-    'red_striped_ball' : red_striped_ball,
-    'yellow_solid_ball' : yellow_solid_ball,
-    'orange_striped_ball' : orange_striped_ball,
-    'purple_striped_ball': purple_striped_ball,
-    'black_ball' : black_ball,
-    'green_solid_ball' : green_solid_ball,
-    'orange_solid_ball' : orange_solid_ball,
-    'purple_solid_ball': purple_solid_ball,
-    'blue_striped_ball' : blue_striped_ball,
-    'yellow_striped_ball' : yellow_striped_ball 
-}
-
-class ReadWriteMemoryProcess(object):
-    def __init__(self):
-        self.rwm = ReadWriteMemory()
-
-    @contextmanager
-    def open_process(self, process_name):
-        try:
-            self.process = self.rwm.get_process_by_name(process_name)
-            self.process.open()
-            yield self
-        finally:
-            if self.process != None:
-                self.process.close()
-
-    def get_pointer(self, base_address, offsets):
-        return self.process.get_pointer(base_address, offsets)
-
-    def get_int(self, pointer):
-        return self.process.read(pointer)
-
-    def get_float(self, pointer):
-        int_value = self.get_int(pointer)
-        return struct.unpack("@f", struct.pack("@I", int_value))[0]
-
-    def write_int(self, pointer, value):
-        self.process.write(pointer, value)
-
-    def write_float(self, pointer, value):
-        value_as_integer = struct.unpack("@I", struct.pack("@f", value))[0]
-        self.write_int(pointer, value_as_integer)
-
-    def write_pool_ball(self, pointer, pool_ball):
-        self.write_float(pointer, pool_ball.r1)
-        self.write_float(pointer + 0x4, pool_ball.r2)
-        self.write_float(pointer + 0x8, pool_ball.r3)
-        self.write_float(pointer + 0x10, pool_ball.x)
-        self.write_float(pointer + 0x14, pool_ball.y)
-        self.write_float(pointer + 0x18, pool_ball.z)
-
-    def get_pool_position_object(self, pointer):
-        r1 = self.get_float(pointer)
-        r2 = self.get_float(pointer + 0x4)
-        r3 = self.get_float(pointer + 0x8)
-        x = self.get_float(pointer + 0x10)
-        y = self.get_float(pointer + 0x14)
-        z = self.get_float(pointer + 0x18)
-
-        return PoolObjectPosition(x, y, z, r1, r2, r3)
-
 def get_white_ball_ptr(process):
     return process.get_pointer((BASE_ADDRESS + 0x1215470), offsets=[0x4, 0x38, 0xC, 0x20, 0x44, 0x48, 0x20])
 
@@ -395,8 +318,6 @@ def generate_training_data():
         board_state.provide_white_ball_bounds(whiteballtopleft_in_top_left, whiteballbottomright_in_top_left,whiteballtopleft_in_bottom_right,whiteballbottomright_in_bottom_right)
 
         try:
-            output_directory = r".\\training_images"
-            metadatafile = r".\\training_data.pkl"
             training_metadata = []
             window_handle = win32gui.FindWindow(None, config.GAME_NAME)
             rect = win32gui.GetWindowRect(window_handle)

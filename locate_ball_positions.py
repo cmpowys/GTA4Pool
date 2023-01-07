@@ -7,12 +7,12 @@ import grabscreen
 import win32gui
 import numpy as np
 
-def locate_ball_positions_manually(delay=0.5):
+def locate_ball_positions_manually():
     window_handle = win32gui.FindWindow(None, config.GAME_NAME)
     window_rect = win32gui.GetWindowRect(window_handle)
     rwmp = ReadWriteMemoryProcess()
 
-    with rwmp.open_process("GTAIV.exe") as process:
+    with rwmp.open_process(config.PROCESS_NAME) as process:
         white_ball_ptr = get_white_ball_ptr(process)
         found = find_objects_within_bounds(process, white_ball_ptr, manualconfig.LOCATE_TOPLEFT_BOUND, manualconfig.LOCATE_BOTTOMRIGHT_BOUND)
         found_len = len(found)
@@ -48,10 +48,16 @@ def locate_ball_positions_manually(delay=0.5):
             tmp_ball = ball.copy()
             tmp_ball.x += 0.5
             process.write_pool_ball(ball_pointer, tmp_ball)
-            ans = input("Enter discard to discard, otherwise provide_label")
-            process.write_pool_ball(ball_pointer, ball)
-            if ans == "discard": continue
-            labeled_pointers[ans] = hex(ball_pointer)
+
+            while True:
+                ans = input("Enter discard to discard, quit to quit, otherwise provide_label")
+                process.write_pool_ball(ball_pointer, ball)
+                if ans == "discard": break
+                if ans == "quit": return
+                if ans in config.POOL_BALL_LABELS:
+                    labeled_pointers[ans] = hex(ball_pointer)
+                    break
+                print("Incorrect label must be one of {}, try again".format(config.POOL_BALL_LABELS))
 
         assert(len(labeled_pointers) == 15)
         print(labeled_pointers)
@@ -60,7 +66,7 @@ def locate_ball_positions_manually(delay=0.5):
 
 def get_triangle_sub_image(window_rect):
     img = grabscreen.grab_screen(window_rect)
-    ((tlx, tly), (brx, bry)) = manualconfig.POOL_TRIANGLE_IMAGE_AREA
+    ((tlx, tly), (brx, bry)) = manualconfig.POOL_TRIANGLE_BOUNDING_BOX
     img = img[tly:bry, tlx:brx]
     return img
 
@@ -85,4 +91,4 @@ def get_white_ball_ptr(process):
     return process.get_pointer((manualconfig.BASE_ADDRESS + config.WHITE_BALL_PTR_INITIAL_OFFSET_FROM_BASE), offsets=config.WHITE_BALL_PTR_OFFSETS)
 
 if __name__ == "__main__":
-    locate_ball_positions_manually(config.LOCATE_DELAY)
+    locate_ball_positions_manually()
