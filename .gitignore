@@ -2,6 +2,7 @@ config.py
 training_data.pkl
 cheatenginedata/
 training_images/
+to_classify.png
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
