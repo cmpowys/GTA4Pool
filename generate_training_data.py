@@ -30,14 +30,11 @@ def get_random_pool_object(pool_object_z):
 def generate_random_pool_objects(initial_positions):
     return dict([(label, get_random_pool_object(initial_positions[label].z)) for label in initial_positions])
 
-def get_white_ball_ptr(process):
-    return process.get_pointer((manualconfig.BASE_ADDRESS + config.WHITE_BALL_PTR_INITIAL_OFFSET_FROM_BASE), offsets=config.WHITE_BALL_PTR_OFFSETS)
-
 def get_ball_from_pointers(label, positions, process):
     ball = positions[label]
 
     if label == 'white_ball':
-        ball_ptr = get_white_ball_ptr(process)
+        ball_ptr = process.get_white_ball_ptr()
     else:
         ball_ptr = int(manualconfig.POOL_BALL_POINTERS[label], 16)
 
@@ -82,7 +79,7 @@ def generate_training_data(process):
     metadata = get_metadata()
     pointers = manualconfig.POOL_BALL_POINTERS
     initial_positions = dict((label, process.get_pool_position_object(int(pointers[label], 16))) for label in pointers)
-    initial_positions['white_ball'] = process.get_pool_position_object(get_white_ball_ptr(process))
+    initial_positions['white_ball'] = process.get_pool_position_object(process.get_white_ball_ptr())
 
     try:
         print("starting in 3 seconds")

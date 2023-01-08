@@ -2,6 +2,9 @@ from contextlib import contextmanager
 from ReadWriteMemory import ReadWriteMemory
 import struct
 from pool_object import PoolObject
+from pymem import Pymem
+import config
+import tlhelp32
 
 class ReadWriteMemoryProcess(object):
     def __init__(self):
@@ -12,11 +15,30 @@ class ReadWriteMemoryProcess(object):
         try:
             self.process = self.rwm.get_process_by_name(process_name)
             self.process.open()
+            self.determine_base_address(process_name)
             yield self
         finally:
             if self.process != None:
                 self.process.close()
 
+    def get_process_id(self, process_name):
+        with tlhelp32.ProcessSnapshot() as snapshot:
+            for idx, process in enumerate(snapshot):
+                if process.name == process_name:
+                    return process.pid
+        assert(False)
+
+    def get_base_address(self, pid, process_name):
+        with tlhelp32.ModuleSnapshot(include_32bit=True, pid=pid) as snapshot:
+            for idx, module in enumerate(snapshot):
+                if module.name == process_name:
+                    return module.base_addr
+        assert(False)
+
+    def determine_base_address(self, process_name):
+        pid = self.get_process_id(process_name) 
+        self.base_address = self.get_base_address(pid, process_name)
+        
     def get_pointer(self, base_address, offsets):
         return self.process.get_pointer(base_address, offsets)
 
@@ -57,3 +79,6 @@ class ReadWriteMemoryProcess(object):
         for i in range(1, steps_to_take):
             yield self.get_pool_position_object(starting_pointer + SIZE_OF_POOL_OBJECT*i), starting_pointer + SIZE_OF_POOL_OBJECT*i
             yield self.get_pool_position_object(starting_pointer - SIZE_OF_POOL_OBJECT*i), starting_pointer - SIZE_OF_POOL_OBJECT*i
+ 
+    def get_white_ball_ptr(self):
+        return self.get_pointer((self.base_address + config.WHITE_BALL_PTR_INITIAL_OFFSET_FROM_BASE), offsets=config.WHITE_BALL_PTR_OFFSETS)

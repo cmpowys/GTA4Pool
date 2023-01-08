@@ -13,7 +13,7 @@ def locate_ball_positions_manually():
     rwmp = ReadWriteMemoryProcess()
 
     with rwmp.open_process(config.PROCESS_NAME) as process:
-        white_ball_ptr = get_white_ball_ptr(process)
+        white_ball_ptr = process.get_white_ball_ptr()
         found = find_objects_within_bounds(process, white_ball_ptr, manualconfig.LOCATE_TOPLEFT_BOUND, manualconfig.LOCATE_BOTTOMRIGHT_BOUND)
         found_len = len(found)
         saved_items = []
@@ -86,9 +86,6 @@ def find_objects_within_bounds(process, starting_position, topleft, bottomright)
         return between(ball.x, topleft[0], bottomright[0]) and between(ball.y, topleft[1], bottomright[1]) and between(ball.z, 20, 30)
 
     return [(ball, pointer) for (ball, pointer) in process.iterate_over_potential_objects(starting_position, STEPS_TO_TAKE) if test(ball)]
-
-def get_white_ball_ptr(process):
-    return process.get_pointer((manualconfig.BASE_ADDRESS + config.WHITE_BALL_PTR_INITIAL_OFFSET_FROM_BASE), offsets=config.WHITE_BALL_PTR_OFFSETS)
 
 if __name__ == "__main__":
     locate_ball_positions_manually()
