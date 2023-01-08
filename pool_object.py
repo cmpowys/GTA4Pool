@@ -17,3 +17,6 @@ class PoolObject(object):
         if other == None:
             return False
         return self.x == other.x and self.y == other.y and self.z == other.z and self.r1 == other.r1 and self.r2 == other.r2 and self.r3 == other.r3
+
+    def xy(self):
+        return [self.x, self.y]
