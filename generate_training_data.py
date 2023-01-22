@@ -65,7 +65,7 @@ def write_metadata(metadata):
     metadata_file.close()
 
 def get_bounding_boxes(positions):
-    return dict([(label, conv.get_bounding_box_from_point_in_game_space(positions[label].xy())) for label in positions])
+    return dict([(label, conv.get_bounding_box_from_point_in_game_space(label, positions[label].xy())) for label in positions])
 
 def save_image(directory, img):
     img_id = str(uuid.uuid4())
@@ -106,7 +106,7 @@ def convert_pool_object_to_model_space(pool_object):
 
 if __name__ == "__main__":
     with ReadWriteMemoryProcess().open_process(config.PROCESS_NAME) as process:
-        cv2.namedWindow(config.DISPLAY_WINDOW_NAME)
-        cv2.moveWindow(config.DISPLAY_WINDOW_NAME, -2000, 0)
+        #cv2.namedWindow(config.DISPLAY_WINDOW_NAME)
+        #cv2.moveWindow(config.DISPLAY_WINDOW_NAME, -2000, 0)
         generate_training_data(process)
-        cv2.destroyAllWindows()
+        #cv2.destroyAllWindows()

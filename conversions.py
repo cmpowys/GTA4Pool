@@ -1,7 +1,5 @@
 import numpy as np
 from numpy.linalg import inv
-import manualconfig
-import math
 
 def array(arr):
     return np.array(arr, dtype=np.float32)
@@ -9,41 +7,81 @@ def array(arr):
 def iarray(arr):
     return np.array(arr, dtype=np.int32)
 
-gamespace_topleft = gamespace_origin = array(manualconfig.TOPLEFT_CORNER_IN_GAMESPACE)
-gamespace_topright = array(manualconfig.TOPRIGHT_CORNER_IN_GAMESPACE)
-gamespace_bottomleft = array(manualconfig.BOTTOMLEFT_CORNER_IN_GAMESPACE)
-gamespace_bottomright = array(manualconfig.BOTTOMRIGHT_CORNER_IN_GAMESPACE)
+class Conversions(object):
+    def __init__(self, gamespace_topleft, gamespace_bottomleft, gamespace_topright, pixelspace_topleft_bounding_box, pixelspace_bottomleft_bounding_box, pixelspace_topright_bounding_box):
+        self.gamespace_topleft = self.gamespace_origin = array(gamespace_topleft)
+        self.gamespace_bottomleft = array(gamespace_bottomleft)
+        self.gamespace_topright = array(gamespace_topright)
+        self.pixelspace_topleft_bounding_box = iarray(pixelspace_topleft_bounding_box)
+        self.pixelspace_bottomleft_bounding_box = iarray(pixelspace_bottomleft_bounding_box)
+        self.pixelspace_topright_bounding_box = iarray(pixelspace_topright_bounding_box)
+        self.set_average_pixelspace_adjustments()
+        self.set_pixelspace_delta()
+        self.set_modelspace_gamespace_matrices()
 
-pixelspace_pool_ball_bounding_box = iarray(manualconfig.POOL_OBJECT_BOUNDING_BOX_IN_PIXEL_SPACE)
+    def game_space_to_model_space(self, position):
+        return self.gamespace_inverse_basis_matrix  @ (array(position) - self.gamespace_origin)
 
-gamespace_rightward_basis = gamespace_topright - gamespace_origin
-gamespace_downward_basis = gamespace_bottomleft - gamespace_origin
-gamespace_basis_matrix =  array([[gamespace_rightward_basis[0], gamespace_downward_basis[0]],[gamespace_rightward_basis[1], gamespace_downward_basis[1]]])
-gamespace_inverse_basis_matrix = inv(gamespace_basis_matrix)
+    def model_space_to_game_space(self, position):
+        return (self.gamespace_basis_matrix  @ array(position)) + self.gamespace_origin
 
-pixelspace_topleft_corner, pixelspace_bottomright_corner = iarray(manualconfig.POOL_TABLE_BOUNDING_BOX_IN_PIXEL_SPACE[0]), iarray(manualconfig.POOL_TABLE_BOUNDING_BOX_IN_PIXEL_SPACE[1])
+    def game_space_to_pixel_space_estimate(self, position):
+        return self.model_space_to_pixel_space_estimate(self.game_space_to_model_space(position))
 
-def game_space_to_model_space(position):
-    return gamespace_inverse_basis_matrix  @ (array(position) - gamespace_origin)
+    def model_space_to_pixel_space_estimate(self, position):
+        position = array(position)
+        return iarray((position * self.pixelspace_delta) + self.middle_of(self.pixelspace_topleft_bounding_box))
 
-def model_space_to_game_space(position):
-    return (gamespace_basis_matrix  @ array(position)) + gamespace_origin
+    def get_bounding_box_from_point_in_model_space(self, position):
+        position = array(position)
+        (cx, cy) = self.model_space_to_pixel_space_estimate(position)
+        ((tlax, tlay), (brax, bray)) = self.pixelspace_bouding_box_adjustments
+        return ((cx + tlax, cy + tlay), (cx + brax, cy + bray))
 
-def get_bounding_box_from_point_in_model_space(position):
-    position = array(position)
+    def get_bounding_box_from_point_in_game_space(self, position):
+        return self.get_bounding_box_from_point_in_model_space(self.game_space_to_model_space(position))
 
-    pixelspace_delta = pixelspace_bottomright_corner - pixelspace_topleft_corner
-    middle_of_ball = iarray((position * pixelspace_delta) + pixelspace_topleft_corner)
+    def pixel_space_to_model_space(self, position):
+        position = iarray(position) 
+        delta = position - self.middle_of(self.pixelspace_topleft_bounding_box)
+        return array((delta[0] / self.pixelspace_delta[0], delta[1] / self.pixelspace_delta[1]))
 
-    tlx = pixelspace_pool_ball_bounding_box[0][0]
-    tly = pixelspace_pool_ball_bounding_box[0][1]
-    brx = pixelspace_pool_ball_bounding_box[1][0]
-    bry = pixelspace_pool_ball_bounding_box[1][1]
+    def pixel_space_to_game_space(self, position):
+        return self.model_space_to_game_space(self.pixel_space_to_model_space(position))
 
-    diagonal_length = ((brx - tlx)**2 + (bry - tly)**2)**0.5
-    radius = math.floor(diagonal_length / 2)
-    radius_array = iarray((radius, radius))
-    return (middle_of_ball - radius_array, middle_of_ball + radius_array)
+    def set_average_pixelspace_adjustments(self):
+        white_ball_bounding_boxes = [self.pixelspace_topleft_bounding_box, self.pixelspace_bottomleft_bounding_box, self.pixelspace_topright_bounding_box]
+        count = len(white_ball_bounding_boxes)
+        accum = ((0,0), (0, 0))
 
-def get_bounding_box_from_point_in_game_space(position):
-    return get_bounding_box_from_point_in_model_space(game_space_to_model_space(position))
+        for bounding_box in white_ball_bounding_boxes:
+            ((tlax, tlay), (brax, bray)) = self.get_pixelspace_adjustment(bounding_box)
+            accum = ((accum[0][0] + tlax / count ,accum[0][1] + tlay / count) ,(accum[1][0] + brax / count, accum[1][1] + bray/count))
+
+        self.pixelspace_bouding_box_adjustments = iarray((round(accum[0][0]), round(accum[0][1]))), iarray((round(accum[1][0]), round(accum[1][1])))
+
+    def get_pixelspace_adjustment(self, ball_bounding_box):
+        ((tlx, tly), (brx, bry)) = ball_bounding_box
+        middle_x, middle_y = self.middle_of(ball_bounding_box)
+        tl_adjustment_x = tlx - middle_x
+        tl_adjustment_y = tly - middle_y
+        br_adjustment_x = brx - middle_x
+        br_adjustment_y = bry - middle_y
+        return (tl_adjustment_x, tl_adjustment_y), (br_adjustment_x, br_adjustment_y)
+
+    def set_pixelspace_delta(self):
+        middle_topleft = self.middle_of(self.pixelspace_topleft_bounding_box)
+        middle_bottomleft = self.middle_of(self.pixelspace_bottomleft_bounding_box)
+        middle_topright = self.middle_of(self.pixelspace_topright_bounding_box)
+
+        self.pixelspace_delta = iarray((middle_topright[0] - middle_topleft[0], middle_bottomleft[1] - middle_topleft[1]))
+
+    def middle_of(self, bounding_box_pixelspace):
+        ((tlx, tly), (brx, bry)) = bounding_box_pixelspace
+        return iarray((tlx + round((brx - tlx) / 2), tly + round((bry - tly) / 2)))
+
+    def set_modelspace_gamespace_matrices(self):
+        self.gamespace_rightward_basis = self.gamespace_topright - self.gamespace_origin
+        self.gamespace_downward_basis = self.gamespace_bottomleft - self.gamespace_origin
+        self.gamespace_basis_matrix =  array([[self.gamespace_rightward_basis[0], self.gamespace_downward_basis[0]],[self.gamespace_rightward_basis[1], self.gamespace_downward_basis[1]]])
+        self.gamespace_inverse_basis_matrix = inv(self.gamespace_basis_matrix)

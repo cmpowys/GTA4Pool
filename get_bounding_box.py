@@ -25,7 +25,7 @@ def locate_bounding_box():
                     click2 = (x,y)
                     cv2.rectangle(img, click1, click2, (100, 100, 100), 3)  
                     cv2.imshow(popupwindowname, img)  
-                    print('topleft = {}, bottomright = {}'.format(click1, click2)) 
+                    print("POOL_TABLE_BOUNDING_BOX_IN_PIXEL_SPACE = (({}, {}), ({}, {}))".format(click1[0], click1[1], click2[0], click2[1]))
                     click1 = -1
                     click2 = -1               
 

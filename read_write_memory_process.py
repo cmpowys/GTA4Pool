@@ -11,11 +11,12 @@ class ReadWriteMemoryProcess(object):
         self.rwm = ReadWriteMemory()
 
     @contextmanager
-    def open_process(self, process_name):
+    def open_process(self):
         try:
-            self.process = self.rwm.get_process_by_name(process_name)
+            self.process = self.rwm.get_process_by_name(config.PROCESS_NAME)
             self.process.open()
-            self.determine_base_address(process_name)
+            self.determine_base_address(config.PROCESS_NAME)
+            self.white_ball_ptr = self.get_white_ball_ptr()
             yield self
         finally:
             if self.process != None:
@@ -82,3 +83,6 @@ class ReadWriteMemoryProcess(object):
  
     def get_white_ball_ptr(self):
         return self.get_pointer((self.base_address + config.WHITE_BALL_PTR_INITIAL_OFFSET_FROM_BASE), offsets=config.WHITE_BALL_PTR_OFFSETS)
+
+    def get_white_ball_position(self):
+        return self.get_pool_position_object(self.white_ball_ptr)
