@@ -8,6 +8,13 @@ def iarray(arr):
     return np.array(arr, dtype=np.int32)
 
 class Conversions(object):
+    @classmethod
+    def init_from_manual_config(cls):
+        import manualconfig as mc
+        return Conversions(mc.WHITE_GAMESPACE_TOPLEFT, mc.WHITE_GAMESPACE_BOTTOMLEFT, mc.WHITE_GAMESPACE_TOPRIGHT,
+                    mc.WHITE_PIXELSPACE_TOPLEFT_BOUNDING_BOX, mc.WHITE_PIXELSPACE_BOTTOMLEFT_BOUNDING_BOX, mc.WHITE_PIXELSPACE_TOPRIGHT_BOUNDING_BOX)
+
+
     def __init__(self, gamespace_topleft, gamespace_bottomleft, gamespace_topright, pixelspace_topleft_bounding_box, pixelspace_bottomleft_bounding_box, pixelspace_topright_bounding_box):
         self.gamespace_topleft = self.gamespace_origin = array(gamespace_topleft)
         self.gamespace_bottomleft = array(gamespace_bottomleft)
