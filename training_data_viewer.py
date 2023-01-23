@@ -2,7 +2,6 @@ import cv2
 import pickle
 import os
 import config
-import math
 
 colourings = {
     'red' : (255, 0, 0),
