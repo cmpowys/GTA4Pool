@@ -17,22 +17,19 @@ colourings = {
 }
 
 def main():
-    
-    metadata = pickle.load(open(config.TRAINING_METADATA_FILENAME, "rb"))
- 
     try:
         cv2.namedWindow(config.DISPLAY_WINDOW_NAME)
         for filename in os.listdir(config.TRAINING_DIRECTORY):
-            if not filename.endswith(".png"): continue
+            if not filename.endswith(config.TRAINING_IMAGE_FILE_SUFFIX): continue
             id = filename[:len(filename)-4]
-            metadata_entry = metadata[id]
+            pkl_filename = id + ".pkl"
             img = cv2.imread(config.TRAINING_DIRECTORY + "\\" + filename)
-
-            for label in metadata_entry:
-                bounding_box = metadata_entry[label]
+            bounding_boxes = pickle.load(open(config.TRAINING_DIRECTORY + "\\" + pkl_filename, "rb"))
+            for label in bounding_boxes:
+                bounding_box = bounding_boxes[label]
                 colour = get_colour_from_label(label)
-                draw_circle(img, bounding_box, colour)
-                #cv2.rectangle(img, bounding_box[0], bounding_box[1], colour, 1) 
+                #draw_circle(img, bounding_box, colour)
+                cv2.rectangle(img, bounding_box[0], bounding_box[1], colour, 1) 
 
             cv2.imshow(config.DISPLAY_WINDOW_NAME, img)
             cv2.waitKey(None)

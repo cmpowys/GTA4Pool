@@ -1,7 +1,7 @@
 from read_write_memory_process import ReadWriteMemoryProcess
 import config
 import manualconfig
-import conversions as conv
+import conversions
 import random
 from pool_object import PoolObject
 import cv2
@@ -11,7 +11,8 @@ import pickle
 import time
 import os
 import uuid
-import pathlib
+
+conv = conversions.Conversions.init_from_manual_config()
 
 def get_random_pool_object(pool_object_z):
     def random_range(min, max):
@@ -32,12 +33,7 @@ def generate_random_pool_objects(initial_positions):
 
 def get_ball_from_pointers(label, positions, process):
     ball = positions[label]
-
-    if label == 'white_ball':
-        ball_ptr = process.get_white_ball_ptr()
-    else:
-        ball_ptr = int(manualconfig.POOL_BALL_POINTERS[label], 16)
-
+    ball_ptr = get_pool_ball_pointer(process, label)
     return ball, ball_ptr
 
 def write_board_state_to_memory(process, positions):
@@ -45,27 +41,14 @@ def write_board_state_to_memory(process, positions):
         ball, ball_ptr = get_ball_from_pointers(label, positions, process)
         process.write_pool_ball(ball_ptr, ball)
 
-def get_metadata():
-    metadata_path = pathlib.Path(config.TRAINING_METADATA_FILENAME)
-    
-    if metadata_path.exists():
-        metadata_file = open(config.TRAINING_METADATA_FILENAME, 'rb')
-        try:
-            training_metadata = pickle.load(metadata_file)    
-        except:
-            training_metadata = dict()  
-        metadata_file.close()
-        return training_metadata
-    else:
-        return dict()  
-
-def write_metadata(metadata):
-    metadata_file = open(config.TRAINING_METADATA_FILENAME, 'wb')
-    pickle.dump(metadata, metadata_file)
+def write_metadata(directory, img_id, bounding_boxes):
+    filename = os.path.join(directory, img_id) + ".pkl"
+    metadata_file = open(filename, 'wb')
+    pickle.dump(bounding_boxes, metadata_file)
     metadata_file.close()
 
 def get_bounding_boxes(positions):
-    return dict([(label, conv.get_bounding_box_from_point_in_game_space(label, positions[label].xy())) for label in positions])
+    return dict([(label, conv.get_bounding_box_from_point_in_game_space(positions[label].xy())) for label in positions])
 
 def save_image(directory, img):
     img_id = str(uuid.uuid4())
@@ -73,16 +56,21 @@ def save_image(directory, img):
     cv2.imwrite(filename, img)
     return img_id
 
+def get_pool_ball_pointer(process, label):
+    if label == "white_ball": return process.get_white_ball_ptr()
+    else: return getattr(manualconfig, label.upper())
+
+def get_pool_ball_pointers(process):
+    return dict(((label, get_pool_ball_pointer(process, label)) for label in config.POOL_BALL_LABELS))
+
 def generate_training_data(process):
     window_handle = win32gui.FindWindow(None, config.GAME_NAME)
     window_rect = win32gui.GetWindowRect(window_handle)
-    metadata = get_metadata()
-    pointers = manualconfig.POOL_BALL_POINTERS
-    initial_positions = dict((label, process.get_pool_position_object(int(pointers[label], 16))) for label in pointers)
-    initial_positions['white_ball'] = process.get_pool_position_object(process.get_white_ball_ptr())
+    pointers = get_pool_ball_pointers(process)
+    initial_positions = dict((label, process.get_pool_position_object(pointers[label])) for label in pointers)
 
     try:
-        print("starting in 3 seconds")
+        print("starting in 3 seconds please get into 'overview' mode so that the direction indicators show.")
         time.sleep(3)
 
         for i in range(config.TRAINING_ITERATIONS):
@@ -93,20 +81,49 @@ def generate_training_data(process):
             img = grabscreen.grab_screen(window_rect)
             img_id = save_image(config.TRAINING_DIRECTORY, img)
             bounding_boxes = get_bounding_boxes(random_positions)
-            metadata[img_id] = bounding_boxes
-
-        write_metadata(metadata)
+            write_metadata(config.TRAINING_DIRECTORY, img_id, bounding_boxes)
+            pascal_voc_metadata_xml = get_xml_data(config.TRAINING_DIRECTORY, img_id, bounding_boxes, img)
+            save_xml(config.TRAINING_DIRECTORY, img_id, pascal_voc_metadata_xml)
 
     finally:
         write_board_state_to_memory(process, initial_positions)
 
-
 def convert_pool_object_to_model_space(pool_object):
     return conv.game_space_to_model_space(pool_object.xy())
 
+def save_xml(directory, img_id, xml):
+    xml_file = open(directory + "\\" + img_id + ".xml", 'w')
+    xml_file.write(xml)
+    xml_file.close()
+
+def get_xml_data(directory, img_id, bounding_boxes, img):
+    (height, width, depth) = img.shape
+    lines = []
+    lines.append('<annotation verified="yes">')
+    lines.append('\t<folder>{}</folder>'.format(directory))
+    lines.append('\t<filename>{}.png</filename>'.format(img_id))
+    lines.append('\t<path>{}/{}.png</path>'.format(directory, img_id))
+    lines.append('\t<size>')
+    lines.append('\t\t<width>{}</width>'.format(width))
+    lines.append('\t\t<height>{}</height>'.format(height))
+    lines.append('\t\t<depth>{}</depth>'.format(depth))
+    lines.append('\t</size>')
+    for label in bounding_boxes:
+        bounding_box = bounding_boxes[label]
+        lines.append('\t<object>')
+        lines.append('\t\t<name>{}</name>'.format(label))
+        lines.append('\t\t<bndbox>')
+        lines.append('\t\t\t<xmin>{}</xmin>'.format(bounding_box[0][0]))
+        lines.append('\t\t\t<ymin>{}</ymin>'.format(bounding_box[0][1]))
+        lines.append('\t\t\t<xmax>{}</xmax>'.format(bounding_box[1][0]))
+        lines.append('\t\t\t<ymax>{}</ymax>'.format(bounding_box[1][1]))
+        lines.append('\t\t</bndbox>')
+        lines.append('\t</object>')
+    lines.append('</annotation>')
+
+
+    return "\n".join(lines)
+
 if __name__ == "__main__":
-    with ReadWriteMemoryProcess().open_process(config.PROCESS_NAME) as process:
-        #cv2.namedWindow(config.DISPLAY_WINDOW_NAME)
-        #cv2.moveWindow(config.DISPLAY_WINDOW_NAME, -2000, 0)
+    with ReadWriteMemoryProcess().open_process() as process:
         generate_training_data(process)
-        #cv2.destroyAllWindows()
