@@ -70,7 +70,7 @@ def generate_training_data(process):
     initial_positions = dict((label, process.get_pool_position_object(pointers[label])) for label in pointers)
 
     try:
-        print("starting in 3 seconds please get into 'overview' mode so that the direction indicators show.")
+        print("starting in 3 seconds")
         time.sleep(3)
 
         for i in range(config.TRAINING_ITERATIONS):
@@ -81,12 +81,21 @@ def generate_training_data(process):
             img = grabscreen.grab_screen(window_rect)
             img_id = save_image(config.TRAINING_DIRECTORY, img)
             bounding_boxes = get_bounding_boxes(random_positions)
+            add_pockets_to_bounding_boxes(bounding_boxes)
             write_metadata(config.TRAINING_DIRECTORY, img_id, bounding_boxes)
             pascal_voc_metadata_xml = get_xml_data(config.TRAINING_DIRECTORY, img_id, bounding_boxes, img)
             save_xml(config.TRAINING_DIRECTORY, img_id, pascal_voc_metadata_xml)
 
     finally:
         write_board_state_to_memory(process, initial_positions)
+
+def add_pockets_to_bounding_boxes(bounding_boxes):
+    bounding_boxes["topleft_pocket"] = manualconfig.POCKET_PIXELSPACE_TOPLEFT_BOUNDING_BOX
+    bounding_boxes["topmiddle_pocket"] = manualconfig.POCKET_PIXELSPACE_TOPMIDDLE_BOUNDING_BOX
+    bounding_boxes["topright_pocket"] = manualconfig.POCKET_PIXELSPACE_TOPRIGHT_BOUNDING_BOX
+    bounding_boxes["bottomleft_pocket"] = manualconfig.POCKET_PIXELSPACE_BOTTOMLEFT_BOUNDING_BOX
+    bounding_boxes["bottommiddle_pocket"] = manualconfig.POCKET_PIXELSPACE_BOTTOMMIDDLE_BOUNDING_BOX
+    bounding_boxes["bottomright_pocket"] = manualconfig.POCKET_PIXELSPACE_BOTTOMRIGHT_BOUNDING_BOX
 
 def convert_pool_object_to_model_space(pool_object):
     return conv.game_space_to_model_space(pool_object.xy())

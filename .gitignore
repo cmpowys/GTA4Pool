@@ -1,5 +1,5 @@
 config.py
-training_data.pkl
+manualconfig.py
 cheatenginedata/
 training_images/
 to_classify.png

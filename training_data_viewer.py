@@ -13,7 +13,13 @@ colourings = {
     'blue' : (0, 0, 255),
     'brown' : (165,42,42),#A52A2A
     'yellow' : (255, 255, 0),
-    'orange' : (255, 165, 0) ##FFA500
+    'orange' : (255, 165, 0), ##FFA500
+    'topleft_pocket' : (100, 100, 100),
+    'topmiddle_pocket' : (100, 100, 100),
+    'topright_pocket' : (100, 100, 100),
+    'bottomleft_pocket' : (100, 100, 100),
+    'bottommiddle_pocket' : (100, 100, 100),
+    'bottomright_pocket' : (100, 100, 100)
 }
 
 def main():
@@ -28,7 +34,6 @@ def main():
             for label in bounding_boxes:
                 bounding_box = bounding_boxes[label]
                 colour = get_colour_from_label(label)
-                #draw_circle(img, bounding_box, colour)
                 cv2.rectangle(img, bounding_box[0], bounding_box[1], colour, 1) 
 
             cv2.imshow(config.DISPLAY_WINDOW_NAME, img)
@@ -44,12 +49,5 @@ def get_colour_from_label(label):
             return c[2], c[1], c[0]
     assert(False)
 
-def draw_circle(img, bounding_box, colour):
-    ((tlx, tly), (brx, bry)) = bounding_box
-    dx, dy = (brx - tlx)/2, (bry - tly)/2
-    cx, cy = math.floor(tlx + dx), math.floor(tly + dy)
-    radius = math.floor((dx + dy)/2)
-    cv2.circle(img, (cx, cy), radius, colour)
- 
 if __name__ == "__main__":
     main()

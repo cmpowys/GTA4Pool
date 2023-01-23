@@ -138,6 +138,9 @@ def determine_pool_object_positions(process, triangle_bounding_box_gamespace, tr
     assert(len(saved_items) >= 15)
     pointer_count = 0
     for ball_pointer in saved_items:
+        if pointer_count == 15:
+            print("Already have 15 items, discarding rest.")
+            break
         ball = process.get_pool_position_object(ball_pointer)
         tmp_ball = ball.copy()
         tmp_ball.x += 0.5
