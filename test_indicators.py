@@ -5,7 +5,6 @@ import win32gui
 from detecto.core import Model
 from detecto import utils
 import math
-import numpy as np
 from trajectory import Trajectory
 
 def get_delta_image(initial_area, current_area, table_bounding_box):

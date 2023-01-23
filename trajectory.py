@@ -16,12 +16,26 @@ class CircularBuffer(object):
             self.array[self.index] = element
             self.index = (self.index + 1) % ANGLE_COUNT
 
+    def __len__(self):
+        return len(self.array)
+
+    def get_mean_with_outliers_removed(self):
+        if (len(self.array) != ANGLE_COUNT):
+            return 0
+
+        filtered_angles = np.array(self.array)
+        MIN_T = 0.1
+        MAX_T = 0.9
+        filtered_angles= filtered_angles[(filtered_angles > np.quantile(filtered_angles ,MIN_T)) & (filtered_angles <np.quantile(filtered_angles,MAX_T))].tolist()
+
+        if (len(filtered_angles) < 1):
+            return 0
+
+        return np.mean(filtered_angles)
+
 class Trajectory(object):
     def __init__(self, center):
         self.center = center
-        self.reset()
-
-    def reset(self):
         self.angle_runup = CircularBuffer()
         self.image = None
 
@@ -37,18 +51,7 @@ class Trajectory(object):
         self.angle_runup.add(angle)
 
     def get_angle(self):
-        if (len(self.angle_runup.array) != ANGLE_COUNT):
-            return 0
-
-        filtered_angles = np.array(self.angle_runup.array)
-        MIN_T = 0.1
-        MAX_T = 0.9
-        filtered_angles= filtered_angles[(filtered_angles > np.quantile(filtered_angles ,MIN_T)) & (filtered_angles <np.quantile(filtered_angles,MAX_T))].tolist()
-
-        if (len(filtered_angles) < 1):
-            return 0
-
-        return np.mean(filtered_angles)
+        return self.angle_runup.get_mean_with_outliers_removed()
 
     def get_estimated_angle(self):
         edges = cv2.Canny(self.image, 50, 150, apertureSize=3)        
