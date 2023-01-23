@@ -3,6 +3,7 @@ manualconfig.py
 cheatenginedata/
 training_images/
 to_classify.png
+detecto_model
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

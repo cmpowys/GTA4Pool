@@ -3,10 +3,9 @@ import config
 
 def train_model():
     dataset = Dataset(config.TRAINING_DIRECTORY_NAME + "/")
-    model = Model(config.POOL_BALL_LABELS + ["white_ball"]) 
+    model = Model(config.ALL_MODEL_LABELS) 
     model.fit(dataset)
-
-    #labels, boxes, scores = model.predict(img)
+    model.save(config.TRAINING_MODEL_FILENAME)
 
 if __name__ == "__main__":
     train_model()

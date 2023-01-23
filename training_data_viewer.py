@@ -13,14 +13,11 @@ colourings = {
     'blue' : (0, 0, 255),
     'brown' : (165,42,42),#A52A2A
     'yellow' : (255, 255, 0),
-    'orange' : (255, 165, 0), ##FFA500
-    'topleft_pocket' : (100, 100, 100),
-    'topmiddle_pocket' : (100, 100, 100),
-    'topright_pocket' : (100, 100, 100),
-    'bottomleft_pocket' : (100, 100, 100),
-    'bottommiddle_pocket' : (100, 100, 100),
-    'bottomright_pocket' : (100, 100, 100)
+    'orange' : (255, 165, 0) ##FFA500
 }
+
+for label in config.POCKET_LABELS:  
+    colourings[label] = (100, 100, 100)
 
 def main():
     try:

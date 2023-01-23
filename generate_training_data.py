@@ -90,12 +90,8 @@ def generate_training_data(process):
         write_board_state_to_memory(process, initial_positions)
 
 def add_pockets_to_bounding_boxes(bounding_boxes):
-    bounding_boxes["topleft_pocket"] = manualconfig.POCKET_PIXELSPACE_TOPLEFT_BOUNDING_BOX
-    bounding_boxes["topmiddle_pocket"] = manualconfig.POCKET_PIXELSPACE_TOPMIDDLE_BOUNDING_BOX
-    bounding_boxes["topright_pocket"] = manualconfig.POCKET_PIXELSPACE_TOPRIGHT_BOUNDING_BOX
-    bounding_boxes["bottomleft_pocket"] = manualconfig.POCKET_PIXELSPACE_BOTTOMLEFT_BOUNDING_BOX
-    bounding_boxes["bottommiddle_pocket"] = manualconfig.POCKET_PIXELSPACE_BOTTOMMIDDLE_BOUNDING_BOX
-    bounding_boxes["bottomright_pocket"] = manualconfig.POCKET_PIXELSPACE_BOTTOMRIGHT_BOUNDING_BOX
+    for label in config.POCKET_LABELS:
+        bounding_boxes[label] = getattr(manualconfig, "pocket_pixelspace_{}_bounding_box".format(label.replace("_pocket", "")).upper())
 
 def convert_pool_object_to_model_space(pool_object):
     return conv.game_space_to_model_space(pool_object.xy())
