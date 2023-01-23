@@ -87,7 +87,6 @@ class Trajectory(object):
 
         ## TODO handle edge cases
         (x1, y1, x2, y2) = best_line
-        (cx, cy, x2, y2)  = self.center[0], self.center[1], x2, y2
 
         if x2 == x1 or y2 == y1: return 0
         angle = math.atan2((y1 - y2), -(x1 - x2))
