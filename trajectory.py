@@ -43,7 +43,7 @@ class Trajectory(object):
         if self.image is None:
             self.image = delta_image
         else:
-            self.image += delta_image
+            self.image |= delta_image
         angle = self.get_estimated_angle()
         self.add_angle(angle)
 

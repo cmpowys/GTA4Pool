@@ -14,6 +14,7 @@ def get_delta_image(initial_area, current_area, table_bounding_box):
 
     subtracted_area = trim_area(initial_area) - trim_area(current_area)
     subtracted_area = cv2.cvtColor(subtracted_area, cv2.COLOR_BGR2GRAY)
+    subtracted_area = cv2.threshold(subtracted_area, 1, 255, cv2.THRESH_BINARY)[1]
     return subtracted_area
 
 def get_white_ball_center(bounding_boxes):
