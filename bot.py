@@ -8,11 +8,15 @@ from enum import Enum
 from collections import defaultdict
 import numpy as np
 import math
+import time
+import Levenshtein
+from itertools import combinations
 
 def get_text_from_frame(frame):
     # TODO preprocess image for better results?
-    pytesseract.tesseract_cmd = config.PATH_TO_TESSERACT
-    return pytesseract.image_to_string(frame)
+    gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    pytesseract.tesseract_cmd = config.PATH_TO_TESSERACT_EXE
+    return pytesseract.image_to_string(gray_frame)
 
 
 def get_frame():
@@ -31,6 +35,102 @@ class Classification(Enum):
     POCKET = 2
     MARKER = 3
 
+class CurrentPoolType(Enum):
+    UNKNOWN = 0
+    SOLID = 1
+    STRIPES = 2
+    ANY = 3
+
+class PoolState(Enum):
+    UNKNOWN = 0
+    WAITING = 1
+    OVERHEAD = 2
+    AIMING = 3
+    PENDING_RESTART = 4
+    POSITIONING = 5
+    NORMAL_VIEW = 6,
+    MUST_SHOW_HELP = 7
+    RESTART = 8
+
+def get_substrings(string):
+    return [string[x:y] for x, y in combinations(range(len(string) + 1), r = 2)]
+
+class FrameText(object):
+    def __init__(self, text):
+        self.text = text.lower()
+        ## loop through all substrings of text
+        ## find the top distance/ratio of all choices
+        ## given a mininum ratio/distance so we don't choose bogus
+        ## will output "default" state if nothing exceeds our threshold
+        ## some text is lost need to preprocess frame further ("You Lost" in red at bottom of screen was missing)
+
+    def get_state(self, choices, default, threshold_ratio):
+
+        ratios = {}
+
+        # get the max levenshtein distance ratio for each choice testing all substrings of the frame text
+        for choice in choices:
+            max_ratio, from_text = 0, ""
+            for substring in get_substrings(self.text):
+                ratio = Levenshtein.ratio(choice, substring)
+                if ratio > max_ratio: max_ratio, from_text = ratio, substring
+            ratios[choice] = (max_ratio, from_text)
+
+        # find the choice that gives the highest ratio value that exceeds the past in ratio. If none exceed this ratio we will return the default
+        max_ratio, state = 0, default
+        for choice in ratios:
+            (ratio, _) = ratios[choice]
+            if (ratio > threshold_ratio) and ratio > max_ratio:
+                max_ratio, state = ratio, choices[choice]
+
+        return state
+
+    def contains(self, other, choices):
+        if other in self.text:
+            return True
+        
+        options = [] ## need to iterate over all options then choose the highest with a min ratio for similar lines
+        ## and over all possible subsets of the main text
+        MIN_RATIO = 0.90
+        for start_index in range(len(self.text)):
+            end = min(start_index + len(other), len(self.text))
+            substring = self.text[start_index : end]
+            ratio = Levenshtein.ratio(substring, other)
+            if ratio > MIN_RATIO:
+                return True
+        
+        return False
+
+class State(object):
+    def __init__(self):
+        self.current_pool_type = CurrentPoolType.UNKNOWN
+        self.current_state = PoolState.UNKNOWN
+
+    def __str__(self):
+        return "{state},{type}".format(state = self.current_state, type = self.current_pool_type)
+
+    def update_from_text(self, text):
+        text = FrameText(text)
+
+        THRESHOLD = 0.75
+
+        pool_type_choices = {
+            "you may hit any colored ball" : CurrentPoolType.ANY,
+            "must hit a striped colored ball" : CurrentPoolType.STRIPES,
+            "must hit a solid colored ball" : CurrentPoolType.SOLID
+        }
+
+        state_choices = {
+            "to position cue ball" : PoolState.POSITIONING,
+            "for normal view" : PoolState.OVERHEAD,
+            "for overhead view" : PoolState.NORMAL_VIEW,
+            "in one motion" : PoolState.AIMING,
+            "to show help" :  PoolState.MUST_SHOW_HELP,
+            "to play again" : PoolState.RESTART
+        }
+
+        self.current_pool_type = text.get_state(pool_type_choices, self.current_pool_type, THRESHOLD)
+        self.current_state = text.get_state(state_choices, PoolState.WAITING, THRESHOLD)
 
 class Prediction:
     def __init__(self, model_prediction):
@@ -86,9 +186,9 @@ def group_preditions_by_class(predictions):
 def display_predictions(predictions):
     image = np.ones(config.DISPLAY_WINDOW_SHAPE)
     for p in predictions:
-        if p.classifiction == Classification.MARKER:
+        if p.classification == Classification.MARKER:
             cv2.circle(image, p.center, 3, (50, 50, 50))
-        elif p.Classification == Classification.SOLID:
+        elif p.classification == Classification.SOLID:
             cv2.circle(image, p.center, 5, (255, 0, 0))
         # TODO
 
@@ -118,13 +218,17 @@ if __name__ == "__main__":
     with BotContext():
         model = load_object_detection_model()
         frame, _ = get_frame()
-        create_named_window(0, 0)
+        state = State()
+        #create_named_window(0, 0)
 
         while True:
             frame, _ = get_frame()
             text = get_text_from_frame(frame)
-            predictions = detect_pool_objects(frame, model)
-            display_predictions(predictions)
-            print("New Frame:")
-            print(text)
-            cv2.waitKey(1000)
+            #print(text)
+            state.update_from_text(text)
+            print(state)
+            time.sleep(1)
+            #predictions = detect_pool_objects(frame, model)
+            #display_predictions(predictions)
+            #print("New Frame:")
+            #cv2.waitKey(1000)
