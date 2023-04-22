@@ -58,14 +58,8 @@ def get_substrings(string):
 class FrameText(object):
     def __init__(self, text):
         self.text = text.lower()
-        ## loop through all substrings of text
-        ## find the top distance/ratio of all choices
-        ## given a mininum ratio/distance so we don't choose bogus
-        ## will output "default" state if nothing exceeds our threshold
-        ## some text is lost need to preprocess frame further ("You Lost" in red at bottom of screen was missing)
 
     def get_state(self, choices, default, threshold_ratio):
-
         ratios = {}
 
         # get the max levenshtein distance ratio for each choice testing all substrings of the frame text
@@ -85,21 +79,6 @@ class FrameText(object):
 
         return state
 
-    def contains(self, other, choices):
-        if other in self.text:
-            return True
-        
-        options = [] ## need to iterate over all options then choose the highest with a min ratio for similar lines
-        ## and over all possible subsets of the main text
-        MIN_RATIO = 0.90
-        for start_index in range(len(self.text)):
-            end = min(start_index + len(other), len(self.text))
-            substring = self.text[start_index : end]
-            ratio = Levenshtein.ratio(substring, other)
-            if ratio > MIN_RATIO:
-                return True
-        
-        return False
 
 class State(object):
     def __init__(self):
