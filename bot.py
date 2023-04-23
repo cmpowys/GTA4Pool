@@ -2,22 +2,22 @@ import config
 from pytesseract import pytesseract
 import win32gui
 import grabscreen
-import pickle
+from detecto.core import Model
 import cv2
 from enum import Enum
-from collections import defaultdict
 import numpy as np
-import math
 import time
 import Levenshtein
 from itertools import combinations
+from pool_input import PoolInput
+from trajectory import get_angle
+import math
 
 def get_text_from_frame(frame):
-    # TODO preprocess image for better results?
+    # TODO preprocess image for better results? some text like "You lose" is missing from bottom and its in red
     gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     pytesseract.tesseract_cmd = config.PATH_TO_TESSERACT_EXE
     return pytesseract.image_to_string(gray_frame)
-
 
 def get_frame():
     window_handle = win32gui.FindWindow(None, config.GAME_NAME)
@@ -26,7 +26,9 @@ def get_frame():
 
 
 def load_object_detection_model():
-    return pickle.load(open(config.OBJECT_DETECTION_MODEL, "rb"))
+    return Model.load(config.TRAINING_MODEL_FILENAME, config.ALL_MODEL_LABELS)
+
+    #return pickle.load(open(config.OBJECT_DETECTION_MODEL, "rb"))
 
 
 class Classification(Enum):
@@ -79,6 +81,12 @@ class FrameText(object):
 
         return state
 
+class Shot(object):
+    def __init__(self, angle, cue_mouse_delta, shot_back_distance, shot_forward_distance):
+        self.angle = angle
+        self.cue_mouse_delta = cue_mouse_delta
+        self.shot_back_distance = shot_back_distance
+        self.shot_forward_distance = shot_forward_distance
 
 class State(object):
     def __init__(self):
@@ -111,72 +119,8 @@ class State(object):
         self.current_pool_type = text.get_state(pool_type_choices, self.current_pool_type, THRESHOLD)
         self.current_state = text.get_state(state_choices, PoolState.WAITING, THRESHOLD)
 
-class Prediction:
-    def __init__(self, model_prediction):
-        str_clasification = model_prediction["class"]
-        if str_clasification == "pocket":
-            self.classification = Classification.POCKET
-        elif str_clasification == "solid":
-            self.classification = Classification.SOLID
-        elif str_clasification == "striped":
-            self.classification = Classification.STRIPED
-        elif str_clasification == "trajectory":
-            self.classification = Classification.MARKER
-        else:
-            raise Exception("Unexpected classifiction " + str_clasification)
-
-        x = model_prediction["x"]
-        y = model_prediction["y"]
-        width = model_prediction["width"]
-        height = model_prediction["height"]
-
-        topx = math.floor(x + (width/2))
-        topy = math.floor(y + (height/2))
-        botx = math.floor(topx - width)
-        boty = math.floor(topy - height)
-
-        side_lengthx = abs(topx - botx)
-        side_lengthy = abs(topy - boty)
-        average_side_length = math.floor((side_lengthx + side_lengthy) / 2)
-        centerx = math.floor((topx + botx) / 2)
-        centery = math.floor((topy + boty) / 2)
-
-        self.center = (centerx, centery)
-        self.radius = math.floor(average_side_length / 2)
-        self.bounding_box = (topx, topy, botx, boty)
-        self.number = 0 # TODO
-        self.is_white = self.number == 16
-
-
-def detect_pool_objects(frame, model):
-    filename = config.TEMPORARY_IMAGE_NAME
-    cv2.imwrite(filename, frame)
-
-    predictions = model.predict(filename, confidence=40, overlap=30)
-    return [Prediction(p) for p in predictions]
-
-
-def group_preditions_by_class(predictions):
-    grouping = defaultdict(lambda: [])
-    for p in predictions:
-        grouping[p.classification].append(p)
-
-
-def display_predictions(predictions):
-    image = np.ones(config.DISPLAY_WINDOW_SHAPE)
-    for p in predictions:
-        if p.classification == Classification.MARKER:
-            cv2.circle(image, p.center, 3, (50, 50, 50))
-        elif p.classification == Classification.SOLID:
-            cv2.circle(image, p.center, 5, (255, 0, 0))
-        # TODO
-
-    display_image(image)
-
-
 def display_image(image):
     cv2.imshow(config.DISPLAY_WINDOW_NAME, image)
-
 
 def create_named_window(x, y):
     width, height = config.DISPLAY_WINDOW_SHAPE
@@ -184,6 +128,41 @@ def create_named_window(x, y):
     cv2.moveWindow(config.DISPLAY_WINDOW_NAME, x, y)
     cv2.resizeWindow(config.DISPLAY_WINDOW_NAME, width, height)
 
+def create_random_shot():
+    return Shot(0, (0, 0), 200, 400)
+
+def perform_shot(pool_input, shot, model):
+    move_to_angle(pool_input, shot.angle, model)
+    #pool_input.left_click()
+    # move cue to delta
+    #pool_input.take_shot(shot.shot_back_distance, shot.shot_forward_distance)
+
+def move_to_angle(pool_input, angle, model):
+    def get_frame_function():
+        frame, _ = get_frame()
+        return frame
+    
+    while True:
+        get_angle(model, get_frame_function)
+    
+    # TOLERANCE = 0.1
+    # DURATION = 0.3
+    # print("Starting angle move")
+    # current_angle = get_angle(model, get_frame_function)
+    # print("Got first angle", current_angle)
+    # while abs(angle - current_angle) >= TOLERANCE:
+    #     print("About to move")
+    #     pool_input.move_angle(DURATION)
+    #     new_angle = get_angle(model, get_frame_function)
+    #     print("New angle=", new_angle, "Current angle=", current_angle, "Difference=", new_angle-current_angle)
+    #     radians_per_second = (new_angle-current_angle) / DURATION
+    #     print("Moved {radians_per_second} radians/ms".format(radians_per_second=radians_per_second))
+    #     current_angle = new_angle
+
+
+
+def move_to_overhead_view(pool_input):
+    pool_input.press_v()
 
 class BotContext:
     def __enter__(self):
@@ -192,22 +171,30 @@ class BotContext:
     def __exit__(self, exc_type, exc_value, tb):
         cv2.destroyAllWindows()
 
-
 if __name__ == "__main__":
     with BotContext():
+        pool_input = PoolInput()
         model = load_object_detection_model()
         frame, _ = get_frame()
         state = State()
-        #create_named_window(0, 0)
+        #create_named_window(-1000, 400)
 
         while True:
             frame, _ = get_frame()
             text = get_text_from_frame(frame)
-            #print(text)
             state.update_from_text(text)
-            print(state)
-            time.sleep(1)
-            #predictions = detect_pool_objects(frame, model)
-            #display_predictions(predictions)
-            #print("New Frame:")
-            #cv2.waitKey(1000)
+            perform_shot(pool_input, create_random_shot(), model)
+
+            # if state.current_state == PoolState.OVERHEAD:
+            #     shot = create_random_shot()
+            #     perform_shot(pool_input, shot, model)
+            # elif state.current_state == PoolState.NORMAL_VIEW:
+            #     move_to_overhead_view(pool_input)
+            # elif state.current_state == PoolState.RESTART:
+            #     pool_input.press_enter()
+            # elif state.current_state == PoolState.POSITIONING:
+            #     pool_input.left_click() # TODO calculate a good position
+            # elif state.current_state == PoolState.MUST_SHOW_HELP:
+            #     pool_input.press_backspace()
+            
+            # time.sleep(1)
