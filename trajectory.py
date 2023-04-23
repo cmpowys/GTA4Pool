@@ -36,7 +36,7 @@ class Trajectory(object):
                     least_line, least_length, intersected_border = line_to_draw, line_length, border_line
 
         if not least_line is None:
-            cv2.line(image, (least_line[0], least_line[1]), (least_line[2], least_line[3]), (255, 255, 255), 3)
+            cv2.line(image, (least_line[0], least_line[1]), (least_line[2], least_line[3]), (255, 255, 255), 1)
             remaining_length = length - least_length
             if intersected_border == (0, 0, shape[0], 0):
                 reflected_angle = (2*math.pi) - angle
@@ -48,7 +48,7 @@ class Trajectory(object):
                 reflected_angle = (math.pi) - angle
             self.draw_trajectory((least_line[2], least_line[3]), reflected_angle, remaining_length, image)
         else: ## assume line ends in pool table
-            cv2.line(image, (line[0], line[1]), (line[2], line[3]), (255, 255, 255), 3)
+            cv2.line(image, (line[0], line[1]), (line[2], line[3]), (255, 255, 255), 1)
 
     def get_line_length(self, line):
         (sx, sy, ex, ey) = line
@@ -154,7 +154,7 @@ class Trajectory(object):
             get_best_line(x1, y1, x2, y2)
             get_best_line(x2, y2, x1, y1)
             
-        max_score, best_angle = 0, 0,
+        max_score, best_angle = -100000, 0,
         for line in best_lines:
             score, angle = self.evaluate_line(line)
             if score > max_score:
@@ -163,12 +163,11 @@ class Trajectory(object):
         return best_angle
     
     def evaluate_line(self, line):
-        LINE_LENGTH = 1500
+        LINE_LENGTH = 800
         simulated_trajectory_image = np.zeros_like(self.image)
         angle_of_line = self.angle_of_line(line)
         self.draw_trajectory(self.center, angle_of_line, LINE_LENGTH, simulated_trajectory_image)
-        matching_image = simulated_trajectory_image == self.image
-        return matching_image.sum(), angle_of_line
+        return ((simulated_trajectory_image * self.image > 0).sum()), angle_of_line
 
     def angle_of_line(self, line):
         (x1, y1, x2, y2) = line
