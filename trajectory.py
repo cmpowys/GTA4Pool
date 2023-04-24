@@ -4,6 +4,7 @@ import numpy as np
 import config
 from detecto import utils
 
+## TODO major refactoring needed
 class Trajectory(object):
     def __init__(self, center):
         self.center = center
@@ -238,26 +239,26 @@ def get_adjusted_white_ball_center(white_ball_center, table_bounding_box):
         cx, cy = white_ball_center
         return cx - tlx, cy - tly
 
-def get_angle(model, get_frame_function):
-    frame = get_frame_function()
-    bounding_boxes = get_bounding_boxes(model, frame)
-    white_ball_center = get_white_ball_center(bounding_boxes)
-    table_bounding_box = get_table_bounding_box(bounding_boxes)
-    previous_screen = crop_to_bounding_box(frame, table_bounding_box)
-    adjusted_white_ball_center = get_adjusted_white_ball_center(white_ball_center, table_bounding_box)
-    trajectory = Trajectory(adjusted_white_ball_center)
-    while True:
-        screen = crop_to_bounding_box(get_frame_function(), table_bounding_box)
-        delta_image = get_delta_image(previous_screen, screen)
-        if trajectory.add_delta_image(delta_image):
-            angle = trajectory.get_estimated_angle()
-            img = np.zeros_like(trajectory.image)
-            draw_angle(img, angle, trajectory.center, (255, 255, 255), 500)
-            cv2.imshow(config.DISPLAY_WINDOW_NAME, img)
-            cv2.waitKey(500)
-            return angle
+class AngleCalculator(object):
+    def __init__(self, model, get_frame_function):
+        self.get_frame_function = get_frame_function
+        frame = self.get_frame_function()
+        bounding_boxes = get_bounding_boxes(model, frame)
+        white_ball_center = get_white_ball_center(bounding_boxes)
+        self.table_bounding_box = get_table_bounding_box(bounding_boxes)
+        self.adjusted_white_ball_center = get_adjusted_white_ball_center(white_ball_center, self.table_bounding_box)
 
-        previous_screen = screen
+    def get_angle(self):
+        trajectory = Trajectory(self.adjusted_white_ball_center)
+        previous_screen = crop_to_bounding_box(self.get_frame_function(), self.table_bounding_box)
+        while True:
+                screen = crop_to_bounding_box(self.get_frame_function(), self.table_bounding_box)
+                delta_image = get_delta_image(previous_screen, screen)
+                if trajectory.add_delta_image(delta_image):
+                    angle = trajectory.get_estimated_angle()
+                    return angle
+                else:
+                    previous_screen = screen
 
 def crop_to_bounding_box(frame, bounding_box):
     ((tlx, tly), (brx, bry)) = bounding_box

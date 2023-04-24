@@ -10,8 +10,10 @@ import time
 import Levenshtein
 from itertools import combinations
 from pool_input import PoolInput
-from trajectory import get_angle
+from trajectory_mover import TrajectoryMover
+from trajectory import AngleCalculator
 import math
+
 
 def get_text_from_frame(frame):
     # TODO preprocess image for better results? some text like "You lose" is missing from bottom and its in red
@@ -129,7 +131,7 @@ def create_named_window(x, y):
     cv2.resizeWindow(config.DISPLAY_WINDOW_NAME, width, height)
 
 def create_random_shot():
-    return Shot(0, (0, 0), 200, 400)
+    return Shot((3/4)*math.pi, (0, 0), 200, 400)
 
 def perform_shot(pool_input, shot, model):
     move_to_angle(pool_input, shot.angle, model)
@@ -137,29 +139,21 @@ def perform_shot(pool_input, shot, model):
     # move cue to delta
     #pool_input.take_shot(shot.shot_back_distance, shot.shot_forward_distance)
 
-def move_to_angle(pool_input, angle, model):
+def move_to_angle(pool_input, desired_angle, model):
+    TIMEOUT = 30*1000 # 30 seconds
     def get_frame_function():
         frame, _ = get_frame()
         return frame
     
-    while True:
-        get_angle(model, get_frame_function)
-    
-    # TOLERANCE = 0.1
-    # DURATION = 0.3
-    # print("Starting angle move")
-    # current_angle = get_angle(model, get_frame_function)
-    # print("Got first angle", current_angle)
-    # while abs(angle - current_angle) >= TOLERANCE:
-    #     print("About to move")
-    #     pool_input.move_angle(DURATION)
-    #     new_angle = get_angle(model, get_frame_function)
-    #     print("New angle=", new_angle, "Current angle=", current_angle, "Difference=", new_angle-current_angle)
-    #     radians_per_second = (new_angle-current_angle) / DURATION
-    #     print("Moved {radians_per_second} radians/ms".format(radians_per_second=radians_per_second))
-    #     current_angle = new_angle
+    def move_clockwise_function(duration_ms):
+        pool_input.move_angle_clockwise(duration_ms) ## TODO is this really milliseconds or seconds
 
+    def move_anticlockwise_function(duration_ms):
+        pool_input.move_angle_anticlockwise(duration_ms)
 
+    angle_calculator = AngleCalculator(model, get_frame_function)
+    mover = TrajectoryMover(angle_calculator, move_clockwise_function, move_anticlockwise_function)
+    mover.move_to_angle(desired_angle, TIMEOUT)
 
 def move_to_overhead_view(pool_input):
     pool_input.press_v()
