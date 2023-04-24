@@ -52,6 +52,10 @@ class Conversions(object):
         position = iarray(position) 
         delta = position - self.middle_of(self.pixelspace_topleft_bounding_box)
         return array((delta[0] / self.pixelspace_delta[0], delta[1] / self.pixelspace_delta[1]))
+    
+    def pixel_space_bounding_box_to_model_space(self, bounding_box):
+        middle = self.middle_of(bounding_box)
+        return self.pixel_space_to_model_space(middle)
 
     def pixel_space_to_game_space(self, position):
         return self.model_space_to_game_space(self.pixel_space_to_model_space(position))

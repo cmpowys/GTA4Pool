@@ -15,6 +15,7 @@ from trajectory import AngleCalculator
 import math
 import random
 from bot_logger import log
+from pool_model import PoolModel
 
 def get_text_from_frame(frame):
     # TODO preprocess image for better results? some text like "You lose" is missing from bottom and its in red
@@ -135,9 +136,9 @@ def create_random_shot():
     angle = random.random() * 2 * math.pi
     return Shot(angle, (0, 0), 200, 400)
 
-def perform_shot(pool_input, shot, model):
+def perform_shot(pool_input, shot, pool_model):
     log("About to move angle")
-    move_to_angle(pool_input, shot.angle, model)
+    move_to_angle(pool_input, shot.angle, pool_model)
     log("About to go to aim mode")
     pool_input.left_click()
     # TODO move cue to delta
@@ -146,7 +147,7 @@ def perform_shot(pool_input, shot, model):
     ## TODO detect that we failed shot and do something about it
     pool_input.take_shot(shot.shot_back_distance, shot.shot_forward_distance)
 
-def move_to_angle(pool_input, desired_angle, model):
+def move_to_angle(pool_input, desired_angle, pool_model):
     TIMEOUT = 30 # 30 seconds
     def get_frame_function():
         frame, _ = get_frame()
@@ -158,7 +159,7 @@ def move_to_angle(pool_input, desired_angle, model):
     def move_anticlockwise_function(duration_ms):
         pool_input.move_angle_anticlockwise(duration_ms)
 
-    angle_calculator = AngleCalculator(model, get_frame_function)
+    angle_calculator = AngleCalculator(pool_model, get_frame_function)
     mover = TrajectoryMover(angle_calculator, move_clockwise_function, move_anticlockwise_function)
     move_result = mover.move_to_angle(desired_angle, TIMEOUT)
     if move_result.timed_out:
@@ -166,6 +167,10 @@ def move_to_angle(pool_input, desired_angle, model):
 
 def move_to_overhead_view(pool_input):
     pool_input.press_v()
+
+def create_shot_oriented_towards_black_ball(pool_model):
+    angle_to_black_ball = pool_model.get_angle_to("black_ball")
+    return Shot(angle_to_black_ball, (0, 0), 200, 400)
 
 class BotContext:
     def __enter__(self):
@@ -176,9 +181,10 @@ class BotContext:
 
 if __name__ == "__main__":
     with BotContext():
+        frame, _ = get_frame()
         pool_input = PoolInput()
         model = load_object_detection_model()
-        frame, _ = get_frame()
+        pool_model = PoolModel(model)
         state = State()
         #create_named_window(-1000, 400)
 
@@ -188,8 +194,10 @@ if __name__ == "__main__":
             state.update_from_text(text)
 
             if state.current_state == PoolState.OVERHEAD:
+                pool_model.load_frame(frame)
                 shot = create_random_shot()
-                perform_shot(pool_input, shot, model)
+                shot = create_shot_oriented_towards_black_ball(pool_model)
+                perform_shot(pool_input, shot, pool_model)
             elif state.current_state == PoolState.NORMAL_VIEW:
                 move_to_overhead_view(pool_input)
             elif state.current_state == PoolState.RESTART:

@@ -1,8 +1,6 @@
 import cv2
 import math
 import numpy as np
-import config
-from detecto import utils
 
 ## TODO major refactoring needed
 class Trajectory(object):
@@ -179,24 +177,6 @@ class Trajectory(object):
             angle += 2*math.pi
         
         return angle
-
-def predict_image(model, screen):
-    filename = config.TEMPORARY_IMAGE_NAME
-    cv2.imwrite(filename, screen)
-    screen = utils.read_image(filename)
-    return model.predict_top(screen)
-
-def get_bounding_boxes(model, screen):
-    labels, boxes, scores  = predict_image(model, screen)
-
-    bounding_boxes = dict()
-    for index, label in enumerate(labels):
-        assert (label in config.ALL_MODEL_LABELS)
-        bounding_box_float = boxes[index]
-        bounding_box = ((round(bounding_box_float[0].item()), round(bounding_box_float[1].item())), (round(bounding_box_float[2].item()), round(bounding_box_float[3].item())))
-        bounding_boxes[label] = bounding_box
-
-    return bounding_boxes
   
 def get_delta_image(initial_area, current_area):
     subtracted_area = initial_area - current_area
@@ -240,12 +220,11 @@ def get_adjusted_white_ball_center(white_ball_center, table_bounding_box):
         return cx - tlx, cy - tly
 
 class AngleCalculator(object):
-    def __init__(self, model, get_frame_function):
+    def __init__(self, pool_model, get_frame_function):
         self.get_frame_function = get_frame_function
-        frame = self.get_frame_function()
-        bounding_boxes = get_bounding_boxes(model, frame)
-        white_ball_center = get_white_ball_center(bounding_boxes)
-        self.table_bounding_box = get_table_bounding_box(bounding_boxes)
+        self.pool_model = pool_model
+        white_ball_center = get_white_ball_center(self.pool_model.bounding_boxes)
+        self.table_bounding_box = get_table_bounding_box(self.pool_model.bounding_boxes)
         self.adjusted_white_ball_center = get_adjusted_white_ball_center(white_ball_center, self.table_bounding_box)
 
     def get_angle(self):
