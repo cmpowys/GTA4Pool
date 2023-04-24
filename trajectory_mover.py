@@ -1,5 +1,6 @@
 import math
 from enum import Enum
+from bot_logger import log
 
 TWO_PI = 2*math.pi
 ANGLE_TOLERANCE = 0.05
@@ -36,7 +37,7 @@ class TrajectoryMover(object):
         self.estimated_radians_per_second = 0.2 ## TODO improve on this estimate as we progress experimentally 0.2 seems about right with the spacebar held
 
     def move_to_angle(self, desired_angle, timeout):
-        self.log("Attemping to move to angle to {desired_angle}".format(desired_angle = desired_angle))
+        log("Attemping to move to angle to {desired_angle}".format(desired_angle = desired_angle))
         self.time_left = timeout ## maybe use an exception based timeout system instead of subtracting duration each time and at least add a maximum duration in case of a math error
         self.desired_angle = desired_angle
         self.get_estimated_angle()
@@ -48,16 +49,16 @@ class TrajectoryMover(object):
     
     def get_estimated_angle(self):
         self.angle = self.angle_calculator.get_angle() ## TODO time taken here not taken into account and this can take a few seconds
-        self.log("Current angle is estimated to be {angle} radians.".format(angle = self.angle))
+        log("Current angle is estimated to be {angle} radians.".format(angle = self.angle))
     
     def result(self):
         has_timed_out = not self.angle_within_tolerance() and self.has_timed_out()
         result = MoveResult(angle = self.angle, min_angle = 0, max_angle = TWO_PI, timed_out = has_timed_out)
-        self.log("Returning result {result}".format(result = result))
+        log("Returning result {result}".format(result = result))
         return result
 
     def move(self, direction, duration):
-        self.log("Moving {direction} for {duration} ms.".format(direction = direction, duration = duration))
+        log("Moving {direction} for {duration} ms.".format(direction = direction, duration = duration))
         if direction == Direction.CLOCKWISE:
             self.move_clockwise_function(duration)
         else:
@@ -74,7 +75,7 @@ class TrajectoryMover(object):
             abs_radians = self.angle - self.desired_angle
 
         duration = abs_radians / self.estimated_radians_per_second
-        self.log("Moving for {duration} seconds because we want to move {abs_radians} radians at an estimated speed of {estimated_radians_per_second}"
+        log("Moving for {duration} seconds because we want to move {abs_radians} radians at an estimated speed of {estimated_radians_per_second}"
                  .format(duration = duration, abs_radians = abs_radians, estimated_radians_per_second=self.estimated_radians_per_second))
         if self.time_left < duration:
             self.time_left = 0
