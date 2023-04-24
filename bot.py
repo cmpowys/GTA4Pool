@@ -13,7 +13,8 @@ from pool_input import PoolInput
 from trajectory_mover import TrajectoryMover
 from trajectory import AngleCalculator
 import math
-
+import random
+from bot_logger import log
 
 def get_text_from_frame(frame):
     # TODO preprocess image for better results? some text like "You lose" is missing from bottom and its in red
@@ -131,16 +132,22 @@ def create_named_window(x, y):
     cv2.resizeWindow(config.DISPLAY_WINDOW_NAME, width, height)
 
 def create_random_shot():
-    return Shot((3/4)*math.pi, (0, 0), 200, 400)
+    angle = random.random() * 2 * math.pi
+    return Shot(angle, (0, 0), 200, 400)
 
 def perform_shot(pool_input, shot, model):
+    log("About to move angle")
     move_to_angle(pool_input, shot.angle, model)
-    #pool_input.left_click()
-    # move cue to delta
-    #pool_input.take_shot(shot.shot_back_distance, shot.shot_forward_distance)
+    log("About to go to aim mode")
+    pool_input.left_click()
+    # TODO move cue to delta
+    log("About to take shot!")
+    pool_input.wait(1) ## safety wait we seem to miss the input sometimes
+    ## TODO detect that we failed shot and do something about it
+    pool_input.take_shot(shot.shot_back_distance, shot.shot_forward_distance)
 
 def move_to_angle(pool_input, desired_angle, model):
-    TIMEOUT = 30*1000 # 30 seconds
+    TIMEOUT = 30 # 30 seconds
     def get_frame_function():
         frame, _ = get_frame()
         return frame
@@ -153,7 +160,9 @@ def move_to_angle(pool_input, desired_angle, model):
 
     angle_calculator = AngleCalculator(model, get_frame_function)
     mover = TrajectoryMover(angle_calculator, move_clockwise_function, move_anticlockwise_function)
-    mover.move_to_angle(desired_angle, TIMEOUT)
+    move_result = mover.move_to_angle(desired_angle, TIMEOUT)
+    if move_result.timed_out:
+        log("Unable to move to desired angle, timeout reached. Shooting anyways!!!!")
 
 def move_to_overhead_view(pool_input):
     pool_input.press_v()
@@ -177,18 +186,17 @@ if __name__ == "__main__":
             frame, _ = get_frame()
             text = get_text_from_frame(frame)
             state.update_from_text(text)
-            perform_shot(pool_input, create_random_shot(), model)
 
-            # if state.current_state == PoolState.OVERHEAD:
-            #     shot = create_random_shot()
-            #     perform_shot(pool_input, shot, model)
-            # elif state.current_state == PoolState.NORMAL_VIEW:
-            #     move_to_overhead_view(pool_input)
-            # elif state.current_state == PoolState.RESTART:
-            #     pool_input.press_enter()
-            # elif state.current_state == PoolState.POSITIONING:
-            #     pool_input.left_click() # TODO calculate a good position
-            # elif state.current_state == PoolState.MUST_SHOW_HELP:
-            #     pool_input.press_backspace()
+            if state.current_state == PoolState.OVERHEAD:
+                shot = create_random_shot()
+                perform_shot(pool_input, shot, model)
+            elif state.current_state == PoolState.NORMAL_VIEW:
+                move_to_overhead_view(pool_input)
+            elif state.current_state == PoolState.RESTART:
+                pool_input.press_enter()
+            elif state.current_state == PoolState.POSITIONING:
+                pool_input.left_click() # TODO calculate a good position
+            elif state.current_state == PoolState.MUST_SHOW_HELP:
+                pool_input.press_backspace()
             
-            # time.sleep(1)
+            time.sleep(1)

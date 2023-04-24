@@ -31,7 +31,7 @@ class PoolInput:
 
     def left_click(self):
         self.move(buttons = self.keys_obj.mouse_lb_press)
-        self.wait(0.05)
+        self.wait(0.5)
         self.move(buttons = self.keys_obj.mouse_lb_release)
 
     def press_key(self, k):
