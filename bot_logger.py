@@ -6,11 +6,11 @@ def log(string):
     if config.SHOULD_LOG:
         print(string)
 
-def draw_debug_image(image, bounding_boxes):
-    draw_trajectory(image, bounding_boxes, (3/4)*math.pi, 1000, (255, 255, 255))
+def draw_debug_image(image, bounding_boxes, desired_angle):
+    draw_trajectory(image, bounding_boxes, desired_angle, 1500, (255, 255, 255))
     draw_pool_balls(image, bounding_boxes)
     cv2.imshow(config.DISPLAY_WINDOW_NAME, image)
-    cv2.waitKey(None)
+    cv2.waitKey(500)
     return
 
 def middle_of(bounding_box):
@@ -45,9 +45,9 @@ def draw_trajectory(image, bounding_boxes, angle, length, colour):
 
         return [
             (tl_pocket_center[0], tl_pocket_center[1], tr_pocket_center[0], tl_pocket_center[1]), ## upper line
-            (tr_pocket_center[0], tr_pocket_center[1], tr_pocket_center[0], br_pocket_center[1]), ## right line
-            (br_pocket_center[0], br_pocket_center[1], bl_pocket_center[0], br_pocket_center[1]), ## bottom line
-            (bl_pocket_center[0], bl_pocket_center[1], bl_pocket_center[0], tl_pocket_center[1])  ## left line
+            (tr_pocket_center[0], tl_pocket_center[1], tr_pocket_center[0], br_pocket_center[1]), ## right line
+            (tr_pocket_center[0], br_pocket_center[1], bl_pocket_center[0], br_pocket_center[1]), ## bottom line
+            (bl_pocket_center[0], br_pocket_center[1], bl_pocket_center[0], tl_pocket_center[1])  ## left line
         ]
 
     def draw_table_border_lines(lines):

@@ -21,12 +21,16 @@ class PoolModel(object):
             self.model_space[label] = model_space_position
 
     def get_angle_to(self, ball_label):
-        assert(not self.model_space is None)
-        assert("white_ball" in self.model_space)
-        assert(ball_label in self.model_space)
+        assert(not self.bounding_boxes is None)
+        assert("white_ball" in self.bounding_boxes)
+        assert(ball_label in self.bounding_boxes)
 
-        white_ball_position = self.model_space["white_ball"]
-        other_ball_position = self.model_space[ball_label]
+        def middle_of(bounding_box): # repeated calculation refactor
+            ((tlx, tly), (brx, bry)) = bounding_box
+            return tlx + ((brx - tlx) // 2), tly + ((bry - tly) // 2)    
+        
+        white_ball_position = middle_of(self.bounding_boxes["white_ball"])
+        other_ball_position = middle_of(self.bounding_boxes[ball_label])
 
         ## this angle calculation is repeated in trajectory.py need to move code somewhere else and improve too
         (x1, y1, x2, y2) = (white_ball_position[0], white_ball_position[1], other_ball_position[0], other_ball_position[1])

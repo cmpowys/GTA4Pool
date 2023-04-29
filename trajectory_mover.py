@@ -16,8 +16,8 @@ import numpy as np
 TWO_PI = 2*math.pi
 ANGLE_TOLERANCE = 0.05
 ADJUSTMENT_ANGLE_TOLERANCE_BY_SPEED = 2
-TIME_STEP = 0.5 # seconds
-NUM_ITERATIONS = 11
+TIME_STEP = 1.5 # seconds
+NUM_ITERATIONS = 6
 
 class MoveResult(object):
     def __init__(self, angle, timed_out):
@@ -154,7 +154,7 @@ class TrajectoryMover(object):
                 .format(difference = abs(difference)))
 
     def get_estimated_angle(self):
-        self.angle = self.angle_calculator.get_angle() ## TODO time taken here not taken into account and this can take a few seconds
+        self.angle = self.angle_calculator() ## TODO time taken here not taken into account and this can take a few seconds
         log("Current angle is estimated to be {angle} radians.".format(angle = self.angle))
     
     def result(self):

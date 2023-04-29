@@ -16,6 +16,7 @@ import math
 import random
 from bot_logger import log, draw_debug_image
 from pool_model import PoolModel
+from cue_angle_mover import move_to_angle as move_to_angle2
 
 def get_text_from_frame(frame):
     # TODO preprocess image for better results? some text like "You lose" is missing from bottom and its in red
@@ -137,10 +138,9 @@ def create_random_shot():
     return Shot(angle, (0, 0), 200, 400)
 
 def perform_shot(pool_input, shot, pool_model):
-    log("debug image about to show")
-    frame, _  = get_frame()
-    draw_debug_image(frame, pool_model.bounding_boxes)
-    return
+    # log("debug image about to show")
+    # frame, _  = get_frame()
+    # draw_debug_image(frame, pool_model.bounding_boxes, shot.angle)
     log("About to move angle")
     move_to_angle(pool_input, shot.angle, pool_model)
     log("About to go to aim mode")
@@ -163,11 +163,12 @@ def move_to_angle(pool_input, desired_angle, pool_model):
     def move_anticlockwise_function(duration_seconds):
         pool_input.move_angle_anticlockwise(duration_seconds)
 
-    angle_calculator = AngleCalculator(pool_model, get_frame_function)
-    mover = TrajectoryMover(angle_calculator, move_clockwise_function, move_anticlockwise_function)
-    move_result = mover.move_to_angle(desired_angle, TIMEOUT)
-    if move_result.timed_out:
-        log("Unable to move to desired angle, timeout reached. Shooting anyways!!!!")
+    move_to_angle2(desired_angle, move_clockwise_function, move_anticlockwise_function, get_frame_function, pool_model.bounding_boxes)
+    # angle_calculator = AngleCalculator(pool_model, get_frame_function)
+    # mover = TrajectoryMover(angle_calculator, move_clockwise_function, move_anticlockwise_function)
+    # move_result = mover.move_to_angle(desired_angle, TIMEOUT)
+    # if move_result.timed_out:
+    #     log("Unable to move to desired angle, timeout reached. Shooting anyways!!!!")
 
 def move_to_overhead_view(pool_input):
     pool_input.press_v()
