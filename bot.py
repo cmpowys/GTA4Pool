@@ -14,7 +14,7 @@ from trajectory_mover import TrajectoryMover
 from trajectory import AngleCalculator
 import math
 import random
-from bot_logger import log
+from bot_logger import log, draw_debug_image
 from pool_model import PoolModel
 
 def get_text_from_frame(frame):
@@ -137,6 +137,10 @@ def create_random_shot():
     return Shot(angle, (0, 0), 200, 400)
 
 def perform_shot(pool_input, shot, pool_model):
+    log("debug image about to show")
+    frame, _  = get_frame()
+    draw_debug_image(frame, pool_model.bounding_boxes)
+    return
     log("About to move angle")
     move_to_angle(pool_input, shot.angle, pool_model)
     log("About to go to aim mode")
@@ -153,11 +157,11 @@ def move_to_angle(pool_input, desired_angle, pool_model):
         frame, _ = get_frame()
         return frame
     
-    def move_clockwise_function(duration_ms):
-        pool_input.move_angle_clockwise(duration_ms) ## TODO is this really milliseconds or seconds
+    def move_clockwise_function(duration_seconds):
+        pool_input.move_angle_clockwise(duration_seconds) 
 
-    def move_anticlockwise_function(duration_ms):
-        pool_input.move_angle_anticlockwise(duration_ms)
+    def move_anticlockwise_function(duration_seconds):
+        pool_input.move_angle_anticlockwise(duration_seconds)
 
     angle_calculator = AngleCalculator(pool_model, get_frame_function)
     mover = TrajectoryMover(angle_calculator, move_clockwise_function, move_anticlockwise_function)

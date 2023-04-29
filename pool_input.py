@@ -15,17 +15,17 @@ class PoolInput:
     def take_shot_scaled(self, scale):
         return self.take_shot(math.floor(200*scale), math.floor(400*scale))
 
-    def move_angle_anticlockwise(self, duration_ms):
+    def move_angle_anticlockwise(self, duration_seconds):
         self.hold_spacebar()
         self.keys_obj.directKey("A")
-        self.wait(duration_ms)
+        self.wait(duration_seconds)
         self.keys_obj.directKey("A", self.keys_obj.key_release)        
         self.release_spacebar()
 
-    def move_angle_clockwise(self, duration_ms):
+    def move_angle_clockwise(self, duration_seconds):
         self.hold_spacebar()
         self.keys_obj.directKey("D")
-        self.wait(duration_ms)
+        self.wait(duration_seconds)
         self.keys_obj.directKey("D", self.keys_obj.key_release)        
         self.release_spacebar()
 
