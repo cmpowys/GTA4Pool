@@ -1,46 +1,75 @@
 import cv2
 import config
 from detecto import utils
-from conversions import Conversions
-import math
+from angle_mover import AngleMover ## TODO refactor out common code
+
+class Observation(object):
+    def __init__(self, is_solid):
+        self.positions = dict()
+        self.balls_in_play = dict()
+        self.is_solid = is_solid
+        
+        labels = self.get_labels()
+
+        for label in labels:
+            self.balls_in_play[label] = False
+            self.positions[label] = (-1.0, -1.0)
+
+    def get_labels(self):
+        labels = ["white_ball", "black_ball"]
+        solids = [label for label in config.ALL_MODEL_LABELS if "solid" in label]
+        stripes = [label for label in config.ALL_MODEL_LABELS if "stripe" in label]
+
+        if self.is_solid:
+            labels = labels + solids + stripes
+        else:
+            labels = labels + stripes + solids
+
+        return labels
+
+    def add_pool_object(self, label, position):
+        self.balls_in_play[label] = True
+        self.positions[label] = position
+
+    def to_array(self):
+        to_return = []
+        for label in config.ALL_MODEL_LABELS:
+            if "pocket" in label: continue
+            x,y = self.positions[label]
+            to_return.append(x)
+            to_return.append(y)
+            to_return.append(int(self.balls_in_play[label]))
+        return to_return
+    
+    
 
 class PoolModel(object):
     def __init__(self, model):
         self.model = model
        
-    def load_frame(self, screen):
+    def load_frame(self, screen, is_solid):
         self.bounding_boxes = self.get_bounding_boxes(screen)
-        self.conversions = Conversions.init_from_manual_config()
-        self.create_model_space()
+        self.create_observation(is_solid)
 
-    def create_model_space(self):
-        self.model_space = dict()
+    def get_pool_observations(self):
+        assert(self.observation is not None)
+        return self.observation.to_array()
+
+    def create_observation(self, is_solid):
+        self.observation = Observation(is_solid)
+        mover = AngleMover(None, None, None)  ## TODO refactor our calculation code
+        mover = mover.with_bounding_boxes(self.bounding_boxes)
         for label in self.bounding_boxes:
             assert (label in config.ALL_MODEL_LABELS)
-            model_space_position = self.conversions.pixel_space_bounding_box_to_model_space(self.bounding_boxes[label])
-            self.model_space[label] = model_space_position
-
-    def get_angle_to(self, ball_label):
-        assert(not self.bounding_boxes is None)
-        assert("white_ball" in self.bounding_boxes)
-        assert(ball_label in self.bounding_boxes)
-
-        def middle_of(bounding_box): # repeated calculation refactor
-            ((tlx, tly), (brx, bry)) = bounding_box
-            return tlx + ((brx - tlx) // 2), tly + ((bry - tly) // 2)    
-        
-        white_ball_position = middle_of(self.bounding_boxes["white_ball"])
-        other_ball_position = middle_of(self.bounding_boxes[ball_label])
-
-        ## this angle calculation is repeated in trajectory.py need to move code somewhere else and improve too
-        (x1, y1, x2, y2) = (white_ball_position[0], white_ball_position[1], other_ball_position[0], other_ball_position[1])
-        if x2 == x1 or y2 == y1: 
-            return 0
-        angle = math.atan2((y1 - y2), -(x1 - x2))
-        if angle < 0:
-            angle += 2*math.pi
-        
-        return angle
+            if not label in self.bounding_boxes: continue
+            bounding_box = self.bounding_boxes[label]
+            middle = mover.middle_of(bounding_box)
+            ((tlx, tly), (brx, bry)) = mover.table_bounding_box
+            width = brx - tlx
+            height = bry - brx
+            ax, ay = mover.adjust_start(middle)
+            position = ax / width, ay / height
+            self.observation.add_pool_object(label, position)
 
     def predict_image(self, screen):
         filename = config.TEMPORARY_IMAGE_NAME

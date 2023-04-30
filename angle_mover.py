@@ -40,6 +40,7 @@ class AngleMover(object):
         log("Improved radians per second estimate from {old} to {new} with calculated radians per second {rps}."
             .format(old=self.estimated_radians_per_second, new=new_estimated_radians_per_second, rps=radians_per_second))
         self.estimated_radians_per_second = new_estimated_radians_per_second
+        
     def move_to(self, angle):
         log("Attemping move to {angle} radians".format(angle=angle))
         current_angle = self.make_initial_angle_estimate()
@@ -94,8 +95,14 @@ class AngleMover(object):
         game_trajectory_image = self.get_game_trajectory_image()
         guesses = []
         sector_length = 2*math.pi/NUM_SECTORS_TO_INITIALLY_TEST
-        for sector_num in range(NUM_SECTORS_TO_INITIALLY_TEST - 1):
-            angles_to_test = self.get_angles_to_test(sector_num*sector_length, (sector_num + 1)*sector_length, ANGLE_DELTA)
+        for sector_num in range(NUM_SECTORS_TO_INITIALLY_TEST):
+            start = sector_num*sector_length
+            if sector_num == NUM_SECTORS_TO_INITIALLY_TEST - 1:
+                end = 2*math.pi
+            else:
+                end = (sector_num + 1)*sector_length
+            log("About to test in sector with start={start}, end={end}".format(start=start, end=end))
+            angles_to_test = self.get_angles_to_test(start, end, ANGLE_DELTA)
             sector_guess = self.estimate_with(angles_to_test, game_trajectory_image, size)
             guesses.append(sector_guess)
 
@@ -162,7 +169,7 @@ class AngleMover(object):
         return math.floor(BALL_RADIUS_SHRINK_FACTOR*(((cx - tlx)**2 + (cy - tly)**2)**0.5))
 
     def adjust_start(self, center):
-        ((tlx, tly), (brx, bry)) = self.get_table_bounding_box(self.calculate_table_border_lines())
+        ((tlx, tly), (brx, bry)) = self.table_bounding_box
         cx, cy = center
         return cx - tlx, cy - tly
     
