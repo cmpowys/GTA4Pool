@@ -4,6 +4,17 @@ import config
 import numpy as np
 from bot_logger import log
 from trajectory_mover import TrajectoryMover
+from enum import Enum
+
+class Direction(Enum):
+    CLOCKWISE = 0
+    ANTI_CLOCKWISE = 1
+
+    def __str__(self):
+        if self == Direction.CLOCKWISE:
+            return "clockwise"
+        else:
+            return "anticlockwise"
 
 def move_to_angle(angle, clockwise_movement_function, anti_clockwise_movement_function, frame_function, bounding_boxes):
     def middle_of(bounding_box):
@@ -15,6 +26,11 @@ def move_to_angle(angle, clockwise_movement_function, anti_clockwise_movement_fu
         ((tlx, tly), (brx, bry)) = bounding_box
         (cx, cy) = center
         return math.floor(SHRINK_FACTOR*(((cx - tlx)**2 + (cy - tly)**2)**0.5))
+    
+    def adjust_start(center):
+        ((tlx, tly), (brx, bry)) = get_table_bounding_box(calculate_table_border_lines())
+        cx, cy = center
+        return cx - tlx, cy - tly
     
     def calculate_table_border_lines():
         def fudge_center(center, radius, dx, dy):
@@ -76,9 +92,7 @@ def move_to_angle(angle, clockwise_movement_function, anti_clockwise_movement_fu
 
         return trajectory_image
     
-    def get_simulated_trajectory(desired_angle):
-        LENGTH = 1500
-                
+    def get_simulated_trajectory(desired_angle):                
         def draw_line(image, line):
             cv2.line(image, (line[0], line[1]), (line[2], line[3]), (255, 255, 255), 4)
 
@@ -159,18 +173,14 @@ def move_to_angle(angle, clockwise_movement_function, anti_clockwise_movement_fu
                 draw_trajectory((least_line[2], least_line[3]), reflected_angle, remaining_length, image)
             else: ## assume line ends in pool table
                 draw_line(image, line)
-
-        def adjust_start(center):
-            ((tlx, tly), (brx, bry)) = get_table_bounding_box(calculate_table_border_lines())
-            cx, cy = center
-            return cx - tlx, cy - tly
         
         image = get_cropped_image()
         image = np.zeros_like(image)
         image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         start = adjust_start(middle_of(bounding_boxes["white_ball"]))
+        length = math.floor(image.shape[1]*1.5) # Trajectory length seems to be around 1.5 times the length of the table
 
-        draw_trajectory(start, desired_angle, LENGTH, image)
+        draw_trajectory(start, desired_angle, length, image)
 
         return image
     
@@ -180,32 +190,160 @@ def move_to_angle(angle, clockwise_movement_function, anti_clockwise_movement_fu
         intersected_image = simulated_trajectory_image & game_trajectory_image
         simulated_trajectory_sum = np.sum(simulated_trajectory_image == 255)
         intersected_sum = np.sum(intersected_image == 255)
+        if simulated_trajectory_sum == 0:
+            return 0
         assert(simulated_trajectory_sum > 0)
         score = intersected_sum / simulated_trajectory_sum
         assert(score >= 0 and score <= 1)
         return score
-    
-    def estimate_current_angle():
-        def estimate_with(start, end, difference):
-            game_trajectory_image = game_trajectory()
+    ## TODO perf maybe instead of reducing the angle delta we can crop the image for the initial guesses at a low detla
+    ## Then for the fine tuning portion we can test on whole frame
+    ## This depends on the the slowdown being in the image manipulation code or the trajectory simulation code (numpy a lot of work) (hand coded not so much work)
+    ## Then when we get a list of best guesses 
+    ## We should only need to wiggle side to side once to narrow down guess to one option
+    ## knowing wich direction (anticlockwise or clockwise) and estimated radians per second of around (20)
+    ## we should be able to filter down that way because the most common error scenario is a reflection because we are close to the edge
+    ## Or we are angled directly to the normal of a border line
+    def estimate_current_angle(): 
+        DURATION = 2 # seconds
+        ESTIMATED_RADIANS_PER_SECOND = 0.2
+        THRESHOLD = 0.7
+        INITIAL_SIZE = 150
+        SECOND_SIZE = 1000000 ## min/max should just result in the full image being returned simpler to code than having a special case in the algorithm
+        NUM_SECTORS = 4
 
-            current_angle = start
-            best_angle, best_score = current_angle, 0
-            while current_angle <= end:
+        def estimate_with(angles, full_game_image, size):
+            small_game_image = get_bounded_image(full_game_image, size)
+            best_angle, best_score = angles[0], 0
+            for current_angle in angles:
                 simulated_trajectory_image = get_simulated_trajectory(current_angle)
-                score = evaluate_trajectory(simulated_trajectory_image, game_trajectory_image)
+                small_simulated_trajectory_iamge = get_bounded_image(simulated_trajectory_image, size)
+                score = evaluate_trajectory(small_simulated_trajectory_iamge, small_game_image)
                 if score >= best_score:
                     best_angle, best_score = current_angle, score
-                current_angle += difference
 
-            return best_angle
+            return best_angle, best_score
         
-        initial_guess = estimate_with(0, 2*math.pi, 0.1)
-        second_guess = estimate_with(initial_guess -0.1, initial_guess + 0.1, 0.01)
-        return second_guess
+        def get_bounded_image(image, size):
+            (cx, cy) =  adjust_start(middle_of(bounding_boxes["white_ball"]))
+            height, width = image.shape
+            start_x = max(0, cx - size)
+            start_y = max(0, cy - size)
+            end_x = min(cx + size, width - 1)
+            end_y = min(cx + size, height - 1)
+            return image[start_y:end_y, start_x:end_x]
+
+        def get_angles_to_test(start, end, difference):
+            angles = []
+            current_angle = start
+            while current_angle < end:
+                angles.append(current_angle)
+                current_angle += difference
+            return angles
+        
+        def move_anticlockwise_a_bit():
+            log("Moving anticlockwise for {duration} seconds".format(duration = DURATION))
+            anti_clockwise_movement_function(DURATION)
+            return DURATION * ESTIMATED_RADIANS_PER_SECOND
+        
+        def get_anti_clockwise_range(start, radian_range):
+            estimated_angle = start + radian_range
+
+            if estimated_angle > 2*math.pi:
+                estimated_angle -= (2*math.pi)
+
+            bound = 0.5*radian_range
+            difference = 0.01
+            angles_to_return = []
+            angles_to_return.append(estimated_angle)
+            lower_angle = estimated_angle
+            upper_angle = estimated_angle
+            for _ in range(1, math.floor(bound/difference)):
+                lower_angle -= difference
+                if lower_angle < 0:
+                    lower_angle = (2*math.pi) - lower_angle
+                
+                upper_angle += difference
+                if upper_angle >= 2*math.pi:
+                    upper_angle -= 2*math.pi
+                
+                angles_to_return.append(lower_angle)
+                angles_to_return.append(upper_angle)
+          
+            return angles_to_return
+        
+        def get_radian_difference(current_angle, target_angle, direction):
+            if direction == Direction.ANTI_CLOCKWISE:
+                angle, desired = current_angle, target_angle
+            else:
+                angle, desired = target_angle, current_angle
+
+            if angle < desired:
+                return desired - angle
+            else:
+                return desired + ((2*math.pi) - angle)
+
+        def get_actual_radians_per_second(current_angle, old_angle):
+            absolute_difference = get_radian_difference(old_angle, current_angle, Direction.ANTI_CLOCKWISE)
+            # difference = current_angle - old_angle
+            # absolute_difference =  abs((difference + math.pi) % (2*math.pi) - math.pi)
+            return absolute_difference / DURATION
+        
+        game_trajectory_image = game_trajectory()
+        guesses = []
+        sector_length = 2*math.pi/NUM_SECTORS
+        for sector_num in range(NUM_SECTORS - 1):
+            angles_to_test = get_angles_to_test(sector_num*sector_length, (sector_num + 1)*sector_length, 0.01)
+            sector_guess = estimate_with(angles_to_test, game_trajectory_image, INITIAL_SIZE)
+            if sector_guess[1] >= THRESHOLD:
+                guesses.append(sector_guess)
+
+        if len(guesses) == 0:
+            log("No angles calcualted to be within the threshold score TODO deal with this case")
+            assert(False)
+
+        if len(guesses) == 1:
+            log("Only one viable angle calculated just returning that")
+            return guesses[0][0]
+
+        ## TODO Filter out angles that are on the boundary line?
+
+        #TODO average estimated radians moved as got keeps playing
+        estimated_radians_moved = move_anticlockwise_a_bit()
+        game_trajectory_image = game_trajectory()
+
+        new_guesses = []
+        for (angle, score) in guesses:
+            angles_to_test = get_anti_clockwise_range(angle, estimated_radians_moved)
+            estimated_angle, new_score = estimate_with(angles_to_test, game_trajectory_image, SECOND_SIZE)
+            new_guesses.append((estimated_angle, new_score, angle))
+
+        new_guesses.sort(reverse=True, key=lambda x:x[1])
+        ## TODO handle maybe repeat this in a loop?
+        # assert(len(new_guesses) == 1)
+        current_angle, old_angle =  new_guesses[0][0], new_guesses[0][2]
+        target_angle = angle
+        radians_per_second = get_actual_radians_per_second(current_angle, old_angle)
+
+        clockwise_difference = get_radian_difference(current_angle, target_angle, Direction.CLOCKWISE)
+        anticlockwise_difference = get_radian_difference(current_angle, target_angle, Direction.ANTI_CLOCKWISE)
+
+        if clockwise_difference < anticlockwise_difference:
+            direction = Direction.CLOCKWISE
+            abs_radians = clockwise_difference
+        else:
+            direction = Direction.ANTI_CLOCKWISE
+            abs_radians = anticlockwise_difference
+
+        duration = abs_radians / radians_per_second
+        if direction == Direction.CLOCKWISE:
+            clockwise_movement_function(duration)
+        else:
+            anti_clockwise_movement_function(duration)
     
-    mover = TrajectoryMover(estimate_current_angle, clockwise_movement_function, anti_clockwise_movement_function)
-    mover.move_to_angle(angle, 60)
+    estimate_current_angle()
+    # mover = TrajectoryMover(estimate_current_angle, clockwise_movement_function, anti_clockwise_movement_function)
+    # mover.move_to_angle(angle, 60)
 
         
 

@@ -16,7 +16,7 @@ import math
 import random
 from bot_logger import log, draw_debug_image
 from pool_model import PoolModel
-from cue_angle_mover import move_to_angle as move_to_angle2
+from angle_mover import AngleMover
 
 def get_text_from_frame(frame):
     # TODO preprocess image for better results? some text like "You lose" is missing from bottom and its in red
@@ -137,12 +137,9 @@ def create_random_shot():
     angle = random.random() * 2 * math.pi
     return Shot(angle, (0, 0), 200, 400)
 
-def perform_shot(pool_input, shot, pool_model):
-    # log("debug image about to show")
-    # frame, _  = get_frame()
-    # draw_debug_image(frame, pool_model.bounding_boxes, shot.angle)
+def perform_shot(pool_input, angle_mover, shot, pool_model):
     log("About to move angle")
-    move_to_angle(pool_input, shot.angle, pool_model)
+    move_to_angle(angle_mover, shot.angle, pool_model)
     log("About to go to aim mode")
     pool_input.left_click()
     # TODO move cue to delta
@@ -151,24 +148,11 @@ def perform_shot(pool_input, shot, pool_model):
     ## TODO detect that we failed shot and do something about it
     pool_input.take_shot(shot.shot_back_distance, shot.shot_forward_distance)
 
-def move_to_angle(pool_input, desired_angle, pool_model):
-    TIMEOUT = 30 # 30 seconds
-    def get_frame_function():
-        frame, _ = get_frame()
-        return frame
-    
-    def move_clockwise_function(duration_seconds):
-        pool_input.move_angle_clockwise(duration_seconds) 
+def move_to_angle(angle_mover, desired_angle, pool_model):
+   
+    ## TODO keep object persistant to improve radians per second estimate
+    angle_mover.with_bounding_boxes(pool_model.bounding_boxes).move_to(desired_angle)
 
-    def move_anticlockwise_function(duration_seconds):
-        pool_input.move_angle_anticlockwise(duration_seconds)
-
-    move_to_angle2(desired_angle, move_clockwise_function, move_anticlockwise_function, get_frame_function, pool_model.bounding_boxes)
-    # angle_calculator = AngleCalculator(pool_model, get_frame_function)
-    # mover = TrajectoryMover(angle_calculator, move_clockwise_function, move_anticlockwise_function)
-    # move_result = mover.move_to_angle(desired_angle, TIMEOUT)
-    # if move_result.timed_out:
-    #     log("Unable to move to desired angle, timeout reached. Shooting anyways!!!!")
 
 def move_to_overhead_view(pool_input):
     pool_input.press_v()
@@ -184,13 +168,28 @@ class BotContext:
     def __exit__(self, exc_type, exc_value, tb):
         cv2.destroyAllWindows()
 
+def get_angle_mover(pool_input):
+    def get_frame_function():
+        frame, _ = get_frame()
+        return frame
+    
+    def move_clockwise_function(duration_seconds):
+        pool_input.move_angle_clockwise(duration_seconds) 
+
+    def move_anticlockwise_function(duration_seconds):
+        pool_input.move_angle_anticlockwise(duration_seconds)
+
+    return AngleMover(move_clockwise_function, move_anticlockwise_function, get_frame_function)
+
 if __name__ == "__main__":
     with BotContext():
         frame, _ = get_frame()
         pool_input = PoolInput()
         model = load_object_detection_model()
         pool_model = PoolModel(model)
+        angle_mover = get_angle_mover(pool_input)
         state = State()
+
         #create_named_window(-1000, 400)
 
         while True:
@@ -202,7 +201,7 @@ if __name__ == "__main__":
                 pool_model.load_frame(frame)
                 shot = create_random_shot()
                 shot = create_shot_oriented_towards_black_ball(pool_model)
-                perform_shot(pool_input, shot, pool_model)
+                perform_shot(pool_input, angle_mover, shot, pool_model)
             elif state.current_state == PoolState.NORMAL_VIEW:
                 move_to_overhead_view(pool_input)
             elif state.current_state == PoolState.RESTART:

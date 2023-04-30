@@ -119,6 +119,8 @@ class TrajectoryMover(object):
     def calibrate(self):
         log("Calibrating trajectory calculations")
         self.get_estimated_angle()
+        ##TODO just returning estimated angle for now
+        return self.angle
         iterations = [self.angle]
         for _ in range(NUM_ITERATIONS - 1):
             self.move_anticlockwise_function(TIME_STEP) ## TODO need to check how accurate the timing is maybe higher duration to remove "noise" in timing
