@@ -14,6 +14,9 @@ SECOND_TRAJECTORY_TEST_SIZE = 1000000 ## min/max should just result in the full 
 NUM_SECTORS_TO_INITIALLY_TEST = 4 # Number of sectors to initially test when determining angle
 ANGLE_DELTA = 0.01 # resolution of angle test
 MAX_MOVEMENTS_TOWARDS_ANGLE = 10 # when honing down on target angle we make at most this amount of movements
+SCORE_THRESHOLD = 0.7
+MAX_INITIAL_TRAJECTORY_TEST_SIZE = 8*INITIAL_TRAJECTORY_TEST_SIZE ## If we fail to threshold we keep increasing size by a factor of 2 until this size
+THRESHOLD_FAIL_MOVE_DURATION = 3 # if we fail to threshold the sector guesses then move the cue to hopefully get a better angle calculation
 
 class Direction(Enum):
     CLOCKWISE = 0
@@ -86,17 +89,22 @@ class AngleMover(object):
         self.calculate_table_bounding_box()
         return self
 
-    def make_angle_guess_in_sectors(self):
+    def make_angle_guess_in_sectors(self, size):
+        log("Making initial angle estimate finding best within a number of sectors")
         game_trajectory_image = self.get_game_trajectory_image()
         guesses = []
         sector_length = 2*math.pi/NUM_SECTORS_TO_INITIALLY_TEST
         for sector_num in range(NUM_SECTORS_TO_INITIALLY_TEST - 1):
             angles_to_test = self.get_angles_to_test(sector_num*sector_length, (sector_num + 1)*sector_length, ANGLE_DELTA)
-            sector_guess = self.estimate_with(angles_to_test, game_trajectory_image, INITIAL_TRAJECTORY_TEST_SIZE)
+            sector_guess = self.estimate_with(angles_to_test, game_trajectory_image, size)
             guesses.append(sector_guess)
 
         assert(len(guesses) > 0)
         guesses.sort(reverse=True, key=lambda x: x[1])
+        
+        log("After testing in each sector we find the best guess in each sector (ordered by score) is {guesses}"
+            .format(guesses=str(guesses)))
+
         return guesses
 
     def make_angle_guess_within_range(self, start_angle, estimated_radians_moved, game_trajectory_image, direction):
@@ -104,8 +112,25 @@ class AngleMover(object):
         estimated_angle, new_score = self.estimate_with(angles_to_test, game_trajectory_image, SECOND_TRAJECTORY_TEST_SIZE)
         return estimated_angle, new_score
 
-    def make_initial_angle_estimate(self):
-        best_guesses_per_sector = self.make_angle_guess_in_sectors()
+    def make_initial_angle_estimate(self, size = INITIAL_TRAJECTORY_TEST_SIZE):
+        best_guesses_per_sector = self.make_angle_guess_in_sectors(size)
+
+        thresholded_guesses = [(guess_angle, guess_score) for guess_angle, guess_score in best_guesses_per_sector if guess_score >= SCORE_THRESHOLD]
+        log("Thresholding initial sector guesses")
+        if len(thresholded_guesses) == 0:
+            log("No guesses made it past the threshold will increase image size by a factor of 2")
+            if (2*size > MAX_INITIAL_TRAJECTORY_TEST_SIZE):
+                log("But we have already increased size too much will just randonly move the cue instead")
+                self.move_anti_clockwise_function(THRESHOLD_FAIL_MOVE_DURATION)
+                return self.make_initial_angle_estimate()
+            else:
+                return self.make_initial_angle_estimate(2*size)
+        elif len(thresholded_guesses) == 1:
+            log("Only one guess made it past the threshold will be using that as our first estimate")
+            return thresholded_guesses[0][0]
+        else:
+            log("Multiple guesses made it past the threshold")
+            best_guesses_per_sector = thresholded_guesses
 
         #TODO average estimated radians moved as got keeps playing
         estimated_radians_moved = self.move_anticlockwise_a_bit()

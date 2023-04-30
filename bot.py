@@ -10,8 +10,6 @@ import time
 import Levenshtein
 from itertools import combinations
 from pool_input import PoolInput
-from trajectory_mover import TrajectoryMover
-from trajectory import AngleCalculator
 import math
 import random
 from bot_logger import log, draw_debug_image
