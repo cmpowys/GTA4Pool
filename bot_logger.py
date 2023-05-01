@@ -85,8 +85,11 @@ def draw_pool_balls(image, bounding_boxes):
         assert(label in config.ALL_MODEL_LABELS)
         colour = get_colour_from_label(label)
         bounding_box = bounding_boxes[label]
-        center = middle_of(bounding_box)
-        radius = radius_of(bounding_box, center)
+        ## TODO not bounding box any more
+        center = bounding_box
+        radius = 50
+        # center = middle_of(bounding_box)
+        # radius = radius_of(bounding_box, center)
         cv2.circle(image, center, radius, colour)
 
 def _draw_trajectory(start, angle, length, image, colour, border_lines):

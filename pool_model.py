@@ -3,6 +3,8 @@ import config
 from detecto import utils
 from angle_mover import AngleMover ## TODO refactor out common code
 
+THRESHOLD = 0.9
+
 class Observation(object):
     def __init__(self, is_solid):
         self.positions = dict()
@@ -12,7 +14,7 @@ class Observation(object):
         labels = self.get_labels()
 
         for label in labels:
-            self.balls_in_play[label] = False
+            self.balls_in_play[label] = 0.0
             self.positions[label] = (-1.0, -1.0)
 
     def get_labels(self):
@@ -27,8 +29,8 @@ class Observation(object):
 
         return labels
 
-    def add_pool_object(self, label, position):
-        self.balls_in_play[label] = True
+    def add_pool_object(self, label, position, score):
+        self.balls_in_play[label] = score
         self.positions[label] = position
 
     def to_array(self):
@@ -41,8 +43,6 @@ class Observation(object):
             to_return.append(int(self.balls_in_play[label]))
         return to_return
     
-    
-
 class PoolModel(object):
     def __init__(self, model):
         self.model = model
@@ -66,10 +66,10 @@ class PoolModel(object):
             middle = mover.middle_of(bounding_box)
             ((tlx, tly), (brx, bry)) = mover.table_bounding_box
             width = brx - tlx
-            height = bry - brx
+            height = bry - tly
             ax, ay = mover.adjust_start(middle)
             position = ax / width, ay / height
-            self.observation.add_pool_object(label, position)
+            self.observation.add_pool_object(label, position, self.scores[label])
 
     def predict_image(self, screen):
         filename = config.TEMPORARY_IMAGE_NAME
@@ -79,12 +79,25 @@ class PoolModel(object):
 
     def get_bounding_boxes(self, screen):
         labels, boxes, scores  = self.predict_image(screen)
-
+        self.scores = dict()
         bounding_boxes = dict()
         for index, label in enumerate(labels):
             assert (label in config.ALL_MODEL_LABELS)
+            self.scores[label] = float(scores[index])
             bounding_box_float = boxes[index]
             bounding_box = ((round(bounding_box_float[0].item()), round(bounding_box_float[1].item())), (round(bounding_box_float[2].item()), round(bounding_box_float[3].item())))
             bounding_boxes[label] = bounding_box
 
         return bounding_boxes
+
+    def get_ball_counts(self):
+        assert(self.observation is not None)
+        stripes,solids = 0, 0
+        for label in self.observation.balls_in_play:
+            if self.observation.balls_in_play[label] < THRESHOLD: continue
+            if "stripe" in label:
+                stripes += 1
+            elif "solid" in label:
+                solids += 1
+
+        return stripes,solids

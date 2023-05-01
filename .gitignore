@@ -4,6 +4,8 @@ cheatenginedata/
 training_images/
 to_classify.png
 detecto_model
+learning_checkpoint/*
+learning_checkpoint_test/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

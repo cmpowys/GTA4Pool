@@ -2,18 +2,27 @@ from learning import Agent
 import numpy as np
 from bot_logger import log
 from pool_game_environment import PoolGameEnvironment
+import config
 
-if __name__ == "__main__":
+def learn(): 
     game = PoolGameEnvironment()
     number_actions = 1
     input_dims = 3*16
     ##TODO don't hardcode these numbers
     ## TODO batch size should be higher after testing
-    agent = Agent(alpha=0.00025, beta=0.00025, input_dims=[input_dims], tau=0.001, batch_size=8, layer1_size=400, layer2_size=300, n_actions=number_actions)
+    agent = Agent(alpha=0.00025, beta=0.00025, input_dims=[input_dims], tau=0.001, batch_size=64, layer1_size=400, layer2_size=300, n_actions=number_actions, checkpoint_dir=config.CHECKPOINT_DIR)
 
+    try:
+        log("Loading model")
+        agent.load_models()
+    except:
+        log("Failed to load model")
+        pass
+    
     np.random.seed(0)
     score_history = []
-    for i in range(1000):
+    i = 0
+    while True:
         done = False
         score = 0
         observations = game.reset()
@@ -30,5 +39,12 @@ if __name__ == "__main__":
         score_history.append(score)
         log("episode " + str(i) + " score " + str(score) + " 100 game average " + str(np.mean(score_history[-100:])))
 
-        if i % 25 == 0:
-            agent.save_models()
+        agent.save_models() ## time between games are long enough might as well save each game
+        i += 1
+
+if __name__ == "__main__":
+    while True:
+        try:
+            learn()
+        except Exception as ex:
+            log("Failed for some reason restarting: " + str(ex))
