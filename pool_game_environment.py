@@ -20,27 +20,64 @@ class PoolGameEnvironment(object):
         self.angle_mover = self.get_angle_mover()
 
     def draw_debug_image(self, angle):
-        return
-        # TODO fix
-        # frame = self.get_frame()
-        # bounding_boxes = dict()
-        # ((sx, sy), (ex, ey)) = self.angle_mover.table_bounding_box
-        # width,height = ex-sx, ey-sy
-        # for label in self.pool_model.bounding_boxes:
-        #     if not "pocket" in label:
-        #         if self.pool_model.observation.balls_in_play[label] > 0.9: ## TODO get threshold from pool_model script
-        #             x, y = self.pool_model.observation.positions[label]
-        #             px, py = math.floor(sx + x*width), math.floor(sy + y*height)
-        #             bounding_boxes[label] = px, py
-        #     else:
-        #         bounding_boxes[label] = self.pool_model.bounding_boxes[label]
+        colourings = {
+            'red' : (255, 0, 0),
+            'purple' : (90,0,90), ##800080
+            'black' : (0, 0, 0),
+            'white' : (255, 255, 255),
+            'green' : (0, 255, 0),
+            'blue' : (0, 0, 255),
+            'brown' : (165,42,42),#A52A2A
+            'yellow' : (255, 255, 0),
+            'orange' : (255, 165, 0) ##FFA500
+        }
 
+        ## TODO change above data so I don't have to swap here
+        def get_colour_from_label(label):
+            for colour in colourings:
+                if colour in label:
+                    c = colourings[colour]
+                    return c[2], c[1], c[0]
+            assert(False)
 
-        # draw_debug_image(frame, bounding_boxes, angle)
+        def get_line_with_angle(start, angle, length):
+            sx, sy = start
+            y = -round(length*math.sin(angle))
+            x = round(length*math.cos(angle))
+            return (sx, sy, sx + x, sy + y)
+
+        ((start_x, start_y), (end_x, end_y)) = self.angle_mover.table_bounding_box
+        frame = self.get_frame()
+        width, height = end_x - start_x, end_y - start_y
+        # Draw table border
+        cv2.rectangle(frame, (start_x, start_y), (end_x, end_y), (255, 255, 255), 1)
+        for label in config.ALL_MODEL_LABELS:
+            if not self.pool_model.observation.balls_in_play[label]: continue
+            fpos_x, fpos_y = self.pool_model.observation.positions[label] 
+            pos_x, pos_y = math.floor(start_x + (width*fpos_x)), math.floor(start_y + (height*fpos_y))
+            ((tlx, tly), (brx, bry)) = self.pool_model.bounding_boxes[label]
+            rx = (brx-tlx)/2
+            ry = (bry-tly)/2
+            radius = math.floor((rx + ry) / 2)
+
+            if "pocket" in label:
+                cv2.circle(frame, (pos_x, pos_y), radius, (100, 100, 100), 3)
+            else:
+                if "stripe" in label:
+                    thickness = 1
+                else:
+                    thickness = 3
+                colour = get_colour_from_label(label)
+                cv2.circle(frame, (pos_x, pos_y), radius, colour, thickness)
+
+        (mx, my) = self.angle_mover.middle_of(self.pool_model.bounding_boxes["white_ball"])
+        (sx, sy, ex, ey) = get_line_with_angle((mx, my), angle, 500)
+        cv2.line(frame, (sx, sy), (ex, ey), (50, 50, 50), 5)
+        cv2.imshow(config.DISPLAY_WINDOW_NAME, frame)
+        cv2.waitKey(1)
 
     def reset(self):
-        ## TODO reset game to start 
-        ## for now assuming game is in a reset position
+        self.get_to_overhead_position()
         return self.get_observations()
 
     def step(self, action): ## TODO make action more than just angle
@@ -48,12 +85,59 @@ class PoolGameEnvironment(object):
         angle = float(action * 2 * math.pi)
         shot = Shot(angle=angle, cue_mouse_delta=(0, 0), shot_back_distance=200, shot_forward_distance=400)
         self.get_to_overhead_position()
+        self.get_observations()
         previous_remaining_striped_balls, previous_remaining_solid_balls = self.pool_model.get_ball_counts()
         self.perform_shot(shot)
         previous_pool_type = self.state.current_pool_type
         win_state, scratched, scratched_before_win = self.get_to_overhead_position()
+        self.get_observations()
         new_pool_type = self.state.current_pool_type
         new_remaining_striped_balls, new_remaining_solid_balls = self.pool_model.get_ball_counts()
+        log("Previous striped balls was {ps}, Previous solid balls was {psd}".format(ps=previous_remaining_striped_balls, psd=previous_remaining_solid_balls))
+        log("Remaining striped balls is {ps}, Remaining solid balls is {psd}".format(ps=new_remaining_striped_balls, psd=new_remaining_solid_balls))
+        reward = 1
+        if win_state == WinState.WON:
+            if not scratched_before_win:
+                log("We managed to win")
+                reward = 10
+            else:
+                reward = -1
+                log("We managed to win only because the other player scratched")
+        elif win_state == WinState.LOST:
+            log("We lost")
+            reward = -10
+        elif scratched: ## someone must have scratched either we didn't get a ball in (other player scratched) or we scratched
+            log("Someone scratched either us or our opponent which would mean we gave him the opportunity to play")
+            reward = -1
+        else:
+            if previous_pool_type == CurrentPoolType.ANY and new_pool_type != CurrentPoolType.ANY:
+                if new_pool_type == CurrentPoolType.SOLID and new_remaining_striped_balls > new_remaining_solid_balls:
+                    log("We have been moved to the solid ball but there are more stripes we must have lost")
+                    reward = -1
+                if new_pool_type == CurrentPoolType.STRIPES and new_remaining_solid_balls > new_remaining_striped_balls:
+                    log("We have been moved to the striped ball but there are more solids we must have lost")
+                    reward = -1
+            elif new_pool_type == CurrentPoolType.SOLID and new_remaining_striped_balls < previous_remaining_striped_balls:
+                log("We are solid but there are fewer striped balls, must have lost")
+                reward = -1
+            elif new_pool_type == CurrentPoolType.SOLID and new_remaining_solid_balls >= previous_remaining_solid_balls:
+                reward = -1
+                log("We are solid but the number didn't go down we must have missed")
+            elif new_pool_type == CurrentPoolType.STRIPES and new_remaining_solid_balls < previous_remaining_solid_balls:
+                log("We are striped but there are fewer solid balls, must have lost")
+                reward = -1
+            elif new_pool_type == CurrentPoolType.STRIPES and new_remaining_striped_balls >= previous_remaining_striped_balls:
+                reward = -1
+                log("We are striped but the number didn't go down we must have missed")
+
+        if reward == 1:
+            log("We managed to get a ball in")
+                
+        new_state  = self.get_observations()
+        done = True # learning turn by turn for now
+        info = None # not used
+        return new_state, reward, done, info
+        ## TODO do more sophisticated reward funtion later
         ##TODO since we mostly return -8 this code will be a lot simpler if we only check the cases where we don't fail
         ## Reward function for now
         ## any loss -8
@@ -118,7 +202,7 @@ class PoolGameEnvironment(object):
 
     def perform_shot(self, shot):
         self.move_to_angle(shot.angle)
-        self.draw_debug_image(shot.angle)
+        #self.draw_debug_image(shot.angle)
         self.pool_input.left_click()
         # TODO move cue to delta
         self.hit_cue_ball(shot)
@@ -126,14 +210,15 @@ class PoolGameEnvironment(object):
     def move_to_angle(self, desired_angle):
         self.angle_mover.with_bounding_boxes(self.pool_model.bounding_boxes).move_to(desired_angle)
 
-    def hit_cue_ball(self, shot):
+    def hit_cue_ball(self, shot): ## TODO just fail if we miss the first time
         self.update_state()
         assert(self.state.current_state == PoolState.AIMING)
-        while self.state.current_state == PoolState.AIMING: ## we do this because sometimes the shot isn't taken
-            self.pool_input.wait(1)
-            self.pool_input.take_shot(shot.shot_back_distance, shot.shot_forward_distance) 
-            self.pool_input.wait(1)
-            self.update_state()
+        self.pool_input.wait(1)
+        self.pool_input.take_shot(shot.shot_back_distance, shot.shot_forward_distance) 
+        self.pool_input.wait(1)
+        self.update_state()
+        if self.state.current_state in [PoolState.AIMING]:
+            self.pool_input.press_backspace()
 
     # Also reports on who won since last time
     def get_to_overhead_position(self):
@@ -158,10 +243,8 @@ class PoolGameEnvironment(object):
                 self.pool_input.press_backspace()
 
     def get_observations(self):
-        self.get_to_overhead_position()
         assert(self.state.current_pool_type in [CurrentPoolType.SOLID, CurrentPoolType.STRIPES, CurrentPoolType.ANY] )
-        ## TODO for now we assume we want to hit a solid ball if we have yet to be given a pool type
-        self.pool_model.load_frame(self.get_frame(), is_solid = self.state.current_pool_type in [CurrentPoolType.SOLID, CurrentPoolType.ANY])
+        self.pool_model.load_frame(self.get_frame(), self.state.current_pool_type)
         return self.pool_model.observation.to_array()
         
     def update_state(self):

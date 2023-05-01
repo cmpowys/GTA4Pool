@@ -37,30 +37,30 @@ class AngleMover(object):
 
     def adjust_radians_per_second_estimate(self, radians_per_second):
         new_estimated_radians_per_second = (self.estimated_radians_per_second + radians_per_second) / 2
-        log("Improved radians per second estimate from {old} to {new} with calculated radians per second {rps}."
-            .format(old=self.estimated_radians_per_second, new=new_estimated_radians_per_second, rps=radians_per_second))
+        #log("Improved radians per second estimate from {old} to {new} with calculated radians per second {rps}."
+            #.format(old=self.estimated_radians_per_second, new=new_estimated_radians_per_second, rps=radians_per_second))
         self.estimated_radians_per_second = new_estimated_radians_per_second
         
     def move_to(self, angle):
         log("Attemping move to {angle} radians".format(angle=angle))
         current_angle = self.make_initial_angle_estimate()
-        log("Angle estimated to be {current_angle}".format(current_angle=current_angle))
+        #log("Angle estimated to be {current_angle}".format(current_angle=current_angle))
 
         for _ in range(MAX_MOVEMENTS_TOWARDS_ANGLE):
-            log("About to make move attempt")
+            #log("About to make move attempt")
             estimated_radians_moved, direction = self.make_move_attempt(current_angle, angle)
             game_trajectory_image = self.get_game_trajectory_image()
             estimated_angle, _ = self.make_angle_guess_within_range(current_angle, estimated_radians_moved, game_trajectory_image, direction)
-            log("After movement we have an estimated angle of {estimated_angle} radians".format(estimated_angle=estimated_angle))
+            #log("After movement we have an estimated angle of {estimated_angle} radians".format(estimated_angle=estimated_angle))
             delta = abs(estimated_angle - angle)
-            log("Delta between desired and target angle is {delta}".format(delta=delta))
+            #log("Delta between desired and target angle is {delta}".format(delta=delta))
             ## TODO improve radians per second estimate
             if delta < 2*ANGLE_DELTA: ## TODO better angle tolerance
                 log("We have reached our target angle")
                 return
-            log("Angle not within tolerance")
+            #log("Angle not within tolerance")
             current_angle = estimated_angle
-        log("We have been unable to reach target angle within {steps} steps".format(steps = MAX_MOVEMENTS_TOWARDS_ANGLE))
+        #log("We have been unable to reach target angle within {steps} steps".format(steps = MAX_MOVEMENTS_TOWARDS_ANGLE))
 
     def make_move_attempt(self, current_angle, target_angle):
         clockwise_difference = self.get_radian_difference(current_angle, target_angle, Direction.CLOCKWISE)
@@ -74,8 +74,8 @@ class AngleMover(object):
             abs_radians = anticlockwise_difference
 
         duration = abs_radians / self.estimated_radians_per_second
-        log("Calculated that we are {abs_radians} radians away with a(n) {direction} movement which will take {duration} seconds."
-            .format(abs_radians=abs_radians, direction=direction, duration=duration))
+        #log("Calculated that we are {abs_radians} radians away with a(n) {direction} movement which will take {duration} seconds."
+            #.format(abs_radians=abs_radians, direction=direction, duration=duration))
         
         if direction == Direction.CLOCKWISE:
             self.move_clocwise_function(duration)
@@ -91,7 +91,7 @@ class AngleMover(object):
         return self
 
     def make_angle_guess_in_sectors(self, size):
-        log("Making initial angle estimate finding best within a number of sectors")
+        #log("Making initial angle estimate finding best within a number of sectors")
         game_trajectory_image = self.get_game_trajectory_image()
         guesses = []
         sector_length = 2*math.pi/NUM_SECTORS_TO_INITIALLY_TEST
@@ -101,7 +101,7 @@ class AngleMover(object):
                 end = 2*math.pi
             else:
                 end = (sector_num + 1)*sector_length
-            log("About to test in sector with start={start}, end={end}".format(start=start, end=end))
+            #log("About to test in sector with start={start}, end={end}".format(start=start, end=end))
             angles_to_test = self.get_angles_to_test(start, end, ANGLE_DELTA)
             sector_guess = self.estimate_with(angles_to_test, game_trajectory_image, size)
             guesses.append(sector_guess)
@@ -109,8 +109,8 @@ class AngleMover(object):
         assert(len(guesses) > 0)
         guesses.sort(reverse=True, key=lambda x: x[1])
         
-        log("After testing in each sector we find the best guess in each sector (ordered by score) is {guesses}"
-            .format(guesses=str(guesses)))
+        #log("After testing in each sector we find the best guess in each sector (ordered by score) is {guesses}"
+            #.format(guesses=str(guesses)))
 
         return guesses
 
@@ -123,20 +123,20 @@ class AngleMover(object):
         best_guesses_per_sector = self.make_angle_guess_in_sectors(size)
 
         thresholded_guesses = [(guess_angle, guess_score) for guess_angle, guess_score in best_guesses_per_sector if guess_score >= SCORE_THRESHOLD]
-        log("Thresholding initial sector guesses")
+        #log("Thresholding initial sector guesses")
         if len(thresholded_guesses) == 0:
-            log("No guesses made it past the threshold will increase image size by a factor of 2")
+            #log("No guesses made it past the threshold will increase image size by a factor of 2")
             if (2*size > MAX_INITIAL_TRAJECTORY_TEST_SIZE):
-                log("But we have already increased size too much will just randonly move the cue instead")
+                #log("But we have already increased size too much will just randonly move the cue instead")
                 self.move_anti_clockwise_function(THRESHOLD_FAIL_MOVE_DURATION)
                 return self.make_initial_angle_estimate()
             else:
                 return self.make_initial_angle_estimate(2*size)
         elif len(thresholded_guesses) == 1:
-            log("Only one guess made it past the threshold will be using that as our first estimate")
+            #log("Only one guess made it past the threshold will be using that as our first estimate")
             return thresholded_guesses[0][0]
         else:
-            log("Multiple guesses made it past the threshold")
+            #log("Multiple guesses made it past the threshold")
             best_guesses_per_sector = thresholded_guesses
 
         #TODO average estimated radians moved as got keeps playing

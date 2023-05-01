@@ -49,16 +49,30 @@ def get_colour_from_label(label):
 
 
 if __name__ == "__main__":
+    THRESHOLD = 0.9
     model = Model.load(config.TRAINING_MODEL_FILENAME, config.ALL_MODEL_LABELS)
     window_handle = win32gui.FindWindow(None, config.GAME_NAME)
     rect = win32gui.GetWindowRect(window_handle)
     while True:
         screen = grabscreen.grab_screen(rect)
-        labels, boxes, _ = predict_image(model, screen)
+        labels, boxes, scores = predict_image(model, screen)
+        scores_dict = dict()
+        bbox_dict = dict()
+        for label in config.ALL_MODEL_LABELS:
+            scores_dict[label] = 0.0
+            bbox_dict[label] = (-1.0, -1.0)
         for index, label in enumerate(labels):
+            scores_dict[label] = float(scores[index])
+            if scores[index] < THRESHOLD:
+                print("Low score for " + labels[index])
             colour = get_colour_from_label(label)
             box = boxes[index]
             bbox = ((round(box[0].item()), round(box[1].item())), (round(box[2].item()), round(box[3].item())))
-            cv2.rectangle(screen, bbox[0], bbox[1], colour, 3)
+            bbox_dict[label] = bbox
+            if "stripe" in label:
+                thickness = 1
+            else:
+                thickness=3
+            cv2.rectangle(screen, bbox[0], bbox[1], colour, thickness)
         cv2.imshow(config.DISPLAY_WINDOW_NAME, screen)
         cv2.waitKey(1)

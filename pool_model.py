@@ -2,14 +2,15 @@ import cv2
 import config
 from detecto import utils
 from angle_mover import AngleMover ## TODO refactor out common code
+from pool_state import CurrentPoolType
 
-THRESHOLD = 0.9
+THRESHOLD = 0.5
 
 class Observation(object):
-    def __init__(self, is_solid):
+    def __init__(self, current_pool_type):
         self.positions = dict()
         self.balls_in_play = dict()
-        self.is_solid = is_solid
+        self.current_pool_type = current_pool_type
         
         labels = self.get_labels()
 
@@ -22,19 +23,26 @@ class Observation(object):
         solids = [label for label in config.ALL_MODEL_LABELS if "solid" in label]
         stripes = [label for label in config.ALL_MODEL_LABELS if "stripe" in label]
 
-        if self.is_solid:
-            labels = labels + solids + stripes
-        else:
-            labels = labels + stripes + solids
+        #if self.is_solid:
+        labels = labels + solids + stripes
+        #else:
+            #labels = labels + stripes + solids
 
         return labels
 
     def add_pool_object(self, label, position, score):
-        self.balls_in_play[label] = score
-        self.positions[label] = position
+        if score >= THRESHOLD:
+            self.balls_in_play[label] = 1.0
+            self.positions[label] = position
 
     def to_array(self):
         to_return = []
+        player = 0.0
+        if self.current_pool_type == CurrentPoolType.SOLID:
+            player = -1.0
+        elif self.current_pool_type == CurrentPoolType.STRIPES:
+            player = 1.0
+        to_return.append(player)
         for label in config.ALL_MODEL_LABELS:
             if "pocket" in label: continue
             x,y = self.positions[label]
@@ -47,16 +55,16 @@ class PoolModel(object):
     def __init__(self, model):
         self.model = model
        
-    def load_frame(self, screen, is_solid):
+    def load_frame(self, screen, current_pool_type):
         self.bounding_boxes = self.get_bounding_boxes(screen)
-        self.create_observation(is_solid)
+        self.create_observation(current_pool_type)
 
     def get_pool_observations(self):
         assert(self.observation is not None)
         return self.observation.to_array()
 
-    def create_observation(self, is_solid):
-        self.observation = Observation(is_solid)
+    def create_observation(self, current_pool_type):
+        self.observation = Observation(current_pool_type)
         mover = AngleMover(None, None, None)  ## TODO refactor our calculation code
         mover = mover.with_bounding_boxes(self.bounding_boxes)
         for label in self.bounding_boxes:
@@ -93,8 +101,10 @@ class PoolModel(object):
     def get_ball_counts(self):
         assert(self.observation is not None)
         stripes,solids = 0, 0
-        for label in self.observation.balls_in_play:
-            if self.observation.balls_in_play[label] < THRESHOLD: continue
+        for label in config.ALL_MODEL_LABELS:
+            if "pocket" in label or "white_ball" in label or "black_ball" in label:
+                continue
+            if not self.observation.balls_in_play[label]: continue
             if "stripe" in label:
                 stripes += 1
             elif "solid" in label:
